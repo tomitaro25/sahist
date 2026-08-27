@@ -754,7 +754,6 @@ function drawBoard() {
       class: 'coord',
       'text-anchor': 'end'
     });
-    fileLabel.textContent = flipped ? ChessEngine.PIECES, ['h','g','f','e','d','c','b','a'][i] : 'abcdefgh'[i];
     fileLabel.textContent = (flipped ? 'hgfedcba' : 'abcdefgh')[i];
     coordGroup.appendChild(fileLabel);
 
