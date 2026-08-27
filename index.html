@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="Șahist — Învaţă şah, joacă şah.">
+  <meta name="theme-color" content="#1a1a1f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <title>Șahist</title>
+
+  <style>
+    /* ─── Tokens ─────────────────────────────────────────────── */
+    :root {
+      --bg:           #1a1a1f;
+      --surface:      #25252d;
+      --surface2:     #2e2e38;
+      --border:       #38383f;
+      --gold:         #c9a84c;
+      --gold-dim:     #8a6e2f;
+      --gold-glow:    rgba(201,168,76,0.18);
+      --light-sq:     #e8d5a3;
+      --dark-sq:      #8a6642;
+      --light-sq-sel: #f5e87a;
+      --dark-sq-sel:  #b5a020;
+      --light-sq-mov: rgba(100,200,100,0.45);
+      --dark-sq-mov:  rgba(60,160,60,0.55);
+      --light-sq-chk: rgba(220,60,60,0.5);
+      --dark-sq-chk:  rgba(180,30,30,0.6);
+      --text:         #e8e4dc;
+      --text-dim:     #8a8780;
+      --text-muted:   #55534f;
+      --w-piece:      #f5f0e8;
+      --b-piece:      #1a1714;
+      --w-piece-str:  #8a7050;
+      --b-piece-str:  #d4b880;
+      --danger:       #c0392b;
+      --success:      #27ae60;
+      --radius:       10px;
+      --radius-sm:    6px;
+      --font-ui:      'Georgia', serif;
+      --font-mono:    'Courier New', monospace;
+      --transition:   0.18s ease;
+    }
+
+    /* ─── Reset ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; font-size: 16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    svg { display: block; }
+
+    /* ─── Topbar ─────────────────────────────────────────────── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 52px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    #topbar .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: var(--gold);
+    }
+    #topbar .logo span { color: var(--text-dim); font-weight: 400; font-size: 0.8rem; margin-left: 6px; }
+    #topbar-actions { display: flex; gap: 8px; align-items: center; }
+    .icon-btn {
+      width: 36px; height: 36px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      transition: color var(--transition), border-color var(--transition);
+    }
+    .icon-btn:hover { color: var(--gold); border-color: var(--gold-dim); }
+
+    /* ─── Main Layout ────────────────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      gap: 0;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 16px;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    /* ─── Board Column ───────────────────────────────────────── */
+    #board-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+
+    /* ─── Captured Pieces Row ────────────────────────────────── */
+    .captured-row {
+      width: 100%;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 2px;
+      padding: 4px 6px;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .captured-row .cap-piece {
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .captured-row .cap-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-right: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ─── Board Wrapper ──────────────────────────────────────── */
+    #board-wrap {
+      position: relative;
+      width: min(calc(100vw - 32px), 520px);
+      aspect-ratio: 1;
+    }
+    #board-svg {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 0 2px var(--border);
+    }
+
+    /* ─── Promotion Modal ────────────────────────────────────── */
+    #promo-modal {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      background: var(--surface);
+      border: 2px solid var(--gold);
+      border-radius: var(--radius);
+      padding: 16px;
+      z-index: 200;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.9);
+      text-align: center;
+    }
+    #promo-modal.active { display: block; }
+    #promo-modal h3 { color: var(--gold); font-size: 0.9rem; margin-bottom: 12px; letter-spacing: 0.05em; }
+    #promo-choices { display: flex; gap: 8px; }
+    .promo-btn {
+      width: 54px; height: 54px;
+      font-size: 2.2rem;
+      line-height: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color var(--transition), background var(--transition);
+    }
+    .promo-btn:hover { border-color: var(--gold); background: var(--gold-glow); }
+
+    /* ─── Status Bar ─────────────────────────────────────────── */
+    #status-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    #status-text {
+      font-size: 0.85rem;
+      color: var(--text);
+      font-style: italic;
+    }
+    #status-text.check { color: #e74c3c; font-weight: 700; font-style: normal; }
+    #status-text.checkmate { color: var(--gold); font-weight: 700; font-style: normal; }
+    #status-text.stalemate { color: var(--text-dim); }
+    #turn-indicator {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+    #turn-pip {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+    }
+    #turn-pip.white { background: #f0ece0; }
+    #turn-pip.black { background: #2a2420; }
+
+    /* ─── Side Panel ─────────────────────────────────────────── */
+    #side-panel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* ─── Panel Sections ─────────────────────────────────────── */
+    .panel-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    /* ─── Game Controls ──────────────────────────────────────── */
+    #controls-section .panel-header { border-bottom: none; }
+    #controls-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 14px 14px;
+    }
+    .ctrl-btn {
+      padding: 9px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-family: inherit;
+      text-align: left;
+      transition: background var(--transition), color var(--transition);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      background: var(--surface2);
+      cursor: pointer;
+    }
+    .ctrl-btn:hover { border-color: var(--gold-dim); color: var(--text); }
+    .ctrl-btn.primary {
+      background: var(--gold);
+      color: #1a1610;
+      border-color: transparent;
+      font-weight: 700;
+    }
+    .ctrl-btn.primary:hover { background: #dab94e; }
+    .ctrl-btn.danger { border-color: var(--danger); color: var(--danger); }
+    .ctrl-btn.danger:hover { background: rgba(192,57,43,0.12); }
+
+    /* ─── Stats ──────────────────────────────────────────────── */
+    #stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      margin: 0;
+    }
+    .stat-cell {
+      background: var(--surface);
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .stat-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .stat-lbl {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 3px;
+    }
+
+    /* ─── Move History ───────────────────────────────────────── */
+    #move-history-list {
+      padding: 10px 14px;
+      max-height: 220px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.9;
+      color: var(--text-dim);
+    }
+    #move-history-list::-webkit-scrollbar { width: 4px; }
+    #move-history-list::-webkit-scrollbar-track { background: transparent; }
+    #move-history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .move-pair { display: flex; gap: 6px; align-items: baseline; }
+    .move-num { color: var(--text-muted); min-width: 22px; }
+    .move-w { color: var(--text); }
+    .move-b { color: var(--text-dim); }
+    .move-latest { color: var(--gold); }
+    #move-history-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.8rem;
+      font-family: var(--font-ui);
+    }
+
+    /* ─── Overlay (Settings / New Game) ─────────────────────── */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #overlay.active { display: flex; }
+    #overlay-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+      overflow: hidden;
+    }
+    #overlay-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    #overlay-title { font-size: 1rem; color: var(--gold); }
+    #overlay-close {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-sm);
+      background: var(--surface2);
+      color: var(--text-dim);
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #overlay-close:hover { color: var(--text); }
+    #overlay-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Settings rows */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .setting-label { font-size: 0.85rem; color: var(--text-dim); }
+    .setting-label small { display: block; font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative; width: 38px; height: 22px; flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    .toggle input:checked + .toggle-track { background: var(--gold-dim); border-color: var(--gold); }
+    .toggle-track::before {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: transform var(--transition), background var(--transition);
+    }
+    .toggle input:checked + .toggle-track::before {
+      transform: translateX(16px);
+      background: var(--gold);
+    }
+
+    /* Segment control */
+    .seg-ctrl {
+      display: flex;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .seg-btn {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+      font-family: inherit;
+      color: var(--text-dim);
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-right: 1px solid var(--border);
+      transition: background var(--transition), color var(--transition);
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn.active { background: var(--gold); color: #1a1610; font-weight: 700; }
+
+    /* Overlay action btn */
+    #overlay-confirm {
+      padding: 11px;
+      border-radius: var(--radius-sm);
+      background: var(--gold);
+      color: #1a1610;
+      font-weight: 700;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      transition: background var(--transition);
+      margin-top: 4px;
+    }
+    #overlay-confirm:hover { background: #dab94e; }
+
+    /* ─── Game Over Banner ───────────────────────────────────── */
+    #gameover-banner {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      border-radius: var(--radius);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      z-index: 150;
+    }
+    #gameover-banner.active { display: flex; }
+    #gameover-emoji { font-size: 3rem; }
+    #gameover-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--gold);
+      text-align: center;
+    }
+    #gameover-sub {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      text-align: center;
+      max-width: 220px;
+    }
+    #gameover-new {
+      padding: 10px 28px;
+      background: var(--gold);
+      color: #1a1610;
+      font-weight: 700;
+      font-size: 0.9rem;
+      font-family: inherit;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      border: none;
+      margin-top: 4px;
+      transition: background var(--transition);
+    }
+    #gameover-new:hover { background: #dab94e; }
+
+    /* ─── Thinking indicator ─────────────────────────────────── */
+    #thinking-dot {
+      display: none;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--gold);
+      animation: pulse 0.9s infinite alternate;
+    }
+    #thinking-dot.active { display: block; }
+    @keyframes pulse { from { opacity: 0.3; } to { opacity: 1; } }
+
+    /* ─── Coordinate Labels ──────────────────────────────────── */
+    .coord { font-size: 0.6rem; fill: var(--text-muted); font-family: var(--font-mono); }
+
+    /* ─── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      #main { flex-direction: column; align-items: center; padding: 10px; gap: 12px; }
+      #board-wrap { width: min(calc(100vw - 20px), 480px); }
+      #side-panel { width: 100%; max-width: 520px; }
+      #move-history-list { max-height: 160px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Topbar ──────────────────────────────────────────────────── -->
+<header id="topbar">
+  <div class="logo">♟ Șahist <span>v1.0</span></div>
+  <div id="topbar-actions">
+    <div id="thinking-dot" title="Calculatorul gândește..."></div>
+    <button class="icon-btn" id="btn-settings" title="Setări" aria-label="Setări">⚙</button>
+  </div>
+</header>
+
+<!-- ─── Main ────────────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Board Column -->
+  <div id="board-col">
+
+    <!-- Captured by player (opponent's pieces) -->
+    <div class="captured-row" id="cap-top">
+      <span class="cap-label">Capturate</span>
+    </div>
+
+    <!-- Board + overlay -->
+    <div id="board-wrap">
+      <svg id="board-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-label="Tablă de șah">
+        <defs>
+          <filter id="piece-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.45"/>
+          </filter>
+        </defs>
+        <!-- Squares, pieces, highlights rendered by JS -->
+        <g id="board-squares"></g>
+        <g id="board-highlights"></g>
+        <g id="board-pieces"></g>
+        <g id="board-coords"></g>
+      </svg>
+
+      <!-- Game Over Banner (inside board-wrap, positioned absolute) -->
+      <div id="gameover-banner" role="dialog" aria-modal="true">
+        <div id="gameover-emoji"></div>
+        <div id="gameover-title"></div>
+        <div id="gameover-sub"></div>
+        <button id="gameover-new">Joc nou</button>
+      </div>
+
+      <!-- Promotion Modal -->
+      <div id="promo-modal" role="dialog" aria-modal="true">
+        <h3>Promovează pionul</h3>
+        <div id="promo-choices"></div>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+      <div id="status-text">Pregătit de joc</div>
+      <div id="turn-indicator">
+        <div id="turn-pip" class="white"></div>
+        <span id="turn-label">Alb</span>
+      </div>
+    </div>
+
+    <!-- Captured by opponent -->
+    <div class="captured-row" id="cap-bottom">
+      <span class="cap-label">Capturate</span>
+    </div>
+
+  </div><!-- /board-col -->
+
+  <!-- Side Panel -->
+  <aside id="side-panel">
+
+    <!-- Controls -->
+    <div class="panel-section" id="controls-section">
+      <div class="panel-header">
+        <span class="panel-title">Joc</span>
+      </div>
+      <div id="controls-btns">
+        <button class="ctrl-btn primary" id="btn-new-game">♟ Joc nou</button>
+        <button class="ctrl-btn" id="btn-undo">↩ Retrage ultima mutare</button>
+        <button class="ctrl-btn" id="btn-flip">⇅ Întoarce tabla</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel-section">
+      <div class="panel-header">
+        <span class="panel-title">Statistici</span>
+      </div>
+      <div id="stats-grid">
+        <div class="stat-cell"><div class="stat-val" id="stat-played">0</div><div class="stat-lbl">Jocuri</div></div>
+        <div class="stat-cell"><div class="stat-val" id="stat-wins">0</div><div class="stat-lbl">Victorii</div></div>
+        <div class="stat-cell"><div class="stat-val" id="stat-losses">0</div><div class="stat-lbl">Înfrângeri</div></div>
+      </div>
+    </div>
+
+    <!-- Move History -->
+    <div class="panel-section">
+      <div class="panel-header">
+        <span class="panel-title">Mutări</span>
+      </div>
+      <div id="move-history-list">
+        <span id="move-history-empty">Nicio mutare încă.</span>
+      </div>
+    </div>
+
+  </aside>
+
+</main><!-- /main -->
+
+<!-- ─── Settings Overlay ─────────────────────────────────────────── -->
+<div id="overlay" role="dialog" aria-modal="true">
+  <div id="overlay-box">
+    <div id="overlay-header">
+      <span id="overlay-title">Setări & Joc nou</span>
+      <button id="overlay-close" aria-label="Închide">✕</button>
+    </div>
+    <div id="overlay-body">
+
+      <div class="setting-row">
+        <div class="setting-label">Culoare piese
+          <small>Cu ce culoare joci tu?</small>
+        </div>
+        <div class="seg-ctrl" id="seg-color">
+          <button class="seg-btn active" data-val="w">♙ Alb</button>
+          <button class="seg-btn" data-val="b">♟ Negru</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">Nivel calculator
+          <small>Cât de abil e adversarul?</small>
+        </div>
+        <div class="seg-ctrl" id="seg-level">
+          <button class="seg-btn active" data-val="beginner">Începător</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">Arată mutările posibile
+          <small>Evidențiază pătratele disponibile</small>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="tog-legal" checked>
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+
+      <button id="overlay-confirm">Pornește joc nou</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Scripts ──────────────────────────────────────────────────── -->
+<script src="chess-engine.js"></script>
+<script src="engine-local.js"></script>
+<script src="storage.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   Șahist — UI Controller
+   ═══════════════════════════════════════════════════════════════════ */
+
+const BOARD_SIZE = 480;
+const SQ = BOARD_SIZE / 8; // 60px per square
+const COORD_OFF = 4;
+
+// ─── State ────────────────────────────────────────────────────────
+let selectedSquare = null; // {r, c}
+let legalMovesForSelected = [];
+let flipped = false;        // board orientation
+let playerColor = 'w';
+let aiColor = 'b';
+let engineLevel = 'beginner';
+let showLegalMoves = true;
+let pendingPromotion = null; // {move} waiting for user choice
+let aiThinking = false;
+
+// ─── DOM refs ─────────────────────────────────────────────────────
+const boardSVG       = document.getElementById('board-svg');
+const sqGroup        = document.getElementById('board-squares');
+const hlGroup        = document.getElementById('board-highlights');
+const pieceGroup     = document.getElementById('board-pieces');
+const coordGroup     = document.getElementById('board-coords');
+const statusText     = document.getElementById('status-text');
+const turnPip        = document.getElementById('turn-pip');
+const turnLabel      = document.getElementById('turn-label');
+const thinkingDot    = document.getElementById('thinking-dot');
+const capTop         = document.getElementById('cap-top');
+const capBottom      = document.getElementById('cap-bottom');
+const moveHistList   = document.getElementById('move-history-list');
+const moveHistEmpty  = document.getElementById('move-history-empty');
+const gameoverBanner = document.getElementById('gameover-banner');
+const promoModal     = document.getElementById('promo-modal');
+const overlay        = document.getElementById('overlay');
+
+// ─── SVG Helpers ──────────────────────────────────────────────────
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function rcToXY(r, c) {
+  // Returns SVG x,y for top-left of square (considering flip)
+  const dr = flipped ? 7 - r : r;
+  const dc = flipped ? 7 - c : c;
+  return { x: dc * SQ, y: dr * SQ };
+}
+
+// ─── Board Drawing ─────────────────────────────────────────────────
+function drawBoard() {
+  sqGroup.innerHTML = '';
+  coordGroup.innerHTML = '';
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const {x, y} = rcToXY(r, c);
+      const light = (r + c) % 2 === 0;
+      const rect = svgEl('rect', {
+        x, y, width: SQ, height: SQ,
+        fill: light ? 'var(--light-sq)' : 'var(--dark-sq)',
+        'data-r': r, 'data-c': c,
+        style: 'cursor:pointer'
+      });
+      rect.addEventListener('click', () => onSquareClick(r, c));
+      sqGroup.appendChild(rect);
+    }
+  }
+
+  // Coordinate labels
+  for (let i = 0; i < 8; i++) {
+    // Files (a-h) on bottom rank
+    const {x} = rcToXY(7, i);
+    const fileLabel = svgEl('text', {
+      x: x + SQ - COORD_OFF - 1,
+      y: BOARD_SIZE - COORD_OFF,
+      class: 'coord',
+      'text-anchor': 'end'
+    });
+    fileLabel.textContent = flipped ? ChessEngine.PIECES, ['h','g','f','e','d','c','b','a'][i] : 'abcdefgh'[i];
+    fileLabel.textContent = (flipped ? 'hgfedcba' : 'abcdefgh')[i];
+    coordGroup.appendChild(fileLabel);
+
+    // Ranks (1-8) on left file
+    const {y} = rcToXY(i, 0);
+    const rankLabel = svgEl('text', {
+      x: COORD_OFF,
+      y: y + COORD_OFF + 7,
+      class: 'coord',
+      'text-anchor': 'start'
+    });
+    rankLabel.textContent = flipped ? (i + 1) : (8 - i);
+    coordGroup.appendChild(rankLabel);
+  }
+}
+
+// ─── Highlights ────────────────────────────────────────────────────
+function drawHighlights() {
+  hlGroup.innerHTML = '';
+
+  const board = ChessEngine.getBoard();
+  const status = ChessEngine.getStatus();
+
+  // Last move highlight
+  const history = ChessEngine.getMoveHistory();
+  if (history.length > 0) {
+    const last = history[history.length - 1].move;
+    for (const sq of [last.from, last.to]) {
+      const {x, y} = rcToXY(sq.r, sq.c);
+      const light = (sq.r + sq.c) % 2 === 0;
+      const rect = svgEl('rect', {
+        x, y, width: SQ, height: SQ,
+        fill: light ? 'var(--light-sq-sel)' : 'var(--dark-sq-sel)',
+        opacity: '0.55'
+      });
+      hlGroup.appendChild(rect);
+    }
+  }
+
+  // Check highlight
+  if (status === 'check' || status === 'checkmate') {
+    const kingColor = ChessEngine.getTurn();
+    for (let r = 0; r < 8; r++)
+      for (let c = 0; c < 8; c++)
+        if (board[r][c]?.color === kingColor && board[r][c]?.type === 'K') {
+          const {x, y} = rcToXY(r, c);
+          const light = (r + c) % 2 === 0;
+          const rect = svgEl('rect', {
+            x, y, width: SQ, height: SQ,
+            fill: light ? 'var(--light-sq-chk)' : 'var(--dark-sq-chk)'
+          });
+          hlGroup.appendChild(rect);
+        }
+  }
+
+  // Selected square
+  if (selectedSquare) {
+    const {x, y} = rcToXY(selectedSquare.r, selectedSquare.c);
+    const light = (selectedSquare.r + selectedSquare.c) % 2 === 0;
+    const rect = svgEl('rect', {
+      x, y, width: SQ, height: SQ,
+      fill: light ? 'var(--light-sq-sel)' : 'var(--dark-sq-sel)'
+    });
+    hlGroup.appendChild(rect);
+  }
+
+  // Legal move dots
+  if (showLegalMoves && selectedSquare) {
+    for (const m of legalMovesForSelected) {
+      const {x, y} = rcToXY(m.to.r, m.to.c);
+      const hasCapture = ChessEngine.getBoard()[m.to.r][m.to.c] || m.enPassant;
+      if (hasCapture) {
+        // Ring for captures
+        const ring = svgEl('circle', {
+          cx: x + SQ/2, cy: y + SQ/2, r: SQ/2 - 3,
+          fill: 'none',
+          stroke: 'rgba(80,180,80,0.7)',
+          'stroke-width': '5'
+        });
+        hlGroup.appendChild(ring);
+      } else {
+        // Dot for quiet moves
+        const dot = svgEl('circle', {
+          cx: x + SQ/2, cy: y + SQ/2, r: SQ/6,
+          fill: 'rgba(80,180,80,0.6)'
+        });
+        hlGroup.appendChild(dot);
+      }
+      // Invisible click target
+      const clickTarget = svgEl('rect', {
+        x, y, width: SQ, height: SQ,
+        fill: 'transparent',
+        style: 'cursor:pointer',
+        'data-r': m.to.r, 'data-c': m.to.c
+      });
+      clickTarget.addEventListener('click', () => onSquareClick(m.to.r, m.to.c));
+      hlGroup.appendChild(clickTarget);
+    }
+  }
+}
+
+// ─── Pieces ────────────────────────────────────────────────────────
+const PIECE_UNICODE = {
+  wK:'♔', wQ:'♕', wR:'♖', wB:'♗', wN:'♘', wP:'♙',
+  bK:'♚', bQ:'♛', bR:'♜', bB:'♝', bN:'♞', bP:'♟'
+};
+
+function drawPieces() {
+  pieceGroup.innerHTML = '';
+  const board = ChessEngine.getBoard();
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const {x, y} = rcToXY(r, c);
+      const isSelected = selectedSquare?.r === r && selectedSquare?.c === c;
+
+      // Piece text
+      const text = svgEl('text', {
+        x: x + SQ/2,
+        y: y + SQ/2 + 1,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central',
+        'font-size': isSelected ? SQ * 0.68 : SQ * 0.72,
+        fill: p.color === 'w' ? 'var(--w-piece)' : 'var(--b-piece)',
+        stroke: p.color === 'w' ? 'var(--w-piece-str)' : 'var(--b-piece-str)',
+        'stroke-width': '0.8',
+        filter: 'url(#piece-shadow)',
+        style: `cursor:${p.color === playerColor && !aiThinking && !ChessEngine.isGameOver() ? 'pointer' : 'default'}`,
+        transform: isSelected ? `translate(0,-2)` : ''
+      });
+      text.textContent = PIECE_UNICODE[p.color + p.type];
+      text.addEventListener('click', () => onSquareClick(r, c));
+      pieceGroup.appendChild(text);
+    }
+  }
+}
+
+function render() {
+  drawHighlights();
+  drawPieces();
+  updateStatusBar();
+  updateCaptured();
+  updateMoveHistory();
+  updateStats();
+}
+
+// ─── Status Bar ────────────────────────────────────────────────────
+function updateStatusBar() {
+  const status = ChessEngine.getStatus();
+  const turn = ChessEngine.getTurn();
+  const isPlayer = turn === playerColor;
+
+  statusText.className = '';
+  turnPip.className = turn === 'w' ? 'white' : 'black';
+  turnLabel.textContent = turn === 'w' ? 'Alb' : 'Negru';
+
+  const messages = {
+    playing: isPlayer ? 'Rândul tău' : 'Calculatorul gândește…',
+    check:   isPlayer ? '⚠ Ești în șah!' : 'Calculatorul e în șah',
+    checkmate: turn === playerColor ? '⚑ Mat — ai pierdut' : '♛ Mat — ai câștigat!',
+    stalemate: '⇌ Remiză — pat',
+    draw: '⇌ Remiză — 50 de mutări'
+  };
+  statusText.textContent = messages[status] || '';
+  if (status === 'check') statusText.classList.add('check');
+  if (status === 'checkmate' || status === 'stalemate') statusText.classList.add('checkmate');
+  if (aiThinking) statusText.textContent = 'Calculatorul gândește…';
+}
+
+// ─── Captured Pieces ───────────────────────────────────────────────
+function updateCaptured() {
+  const cap = ChessEngine.getCapturedPieces();
+  // cap.b = white captured black pieces, cap.w = black captured white pieces
+
+  function renderCap(container, pieces, color) {
+    // Remove old piece spans
+    [...container.querySelectorAll('.cap-piece')].forEach(el => el.remove());
+    for (const type of pieces) {
+      const span = document.createElement('span');
+      span.className = 'cap-piece';
+      span.textContent = PIECE_UNICODE[color + type];
+      container.appendChild(span);
+    }
+  }
+
+  // Top row: captured opponent pieces (opponent color)
+  // Bottom row: captured player pieces
+  if (playerColor === 'w') {
+    renderCap(capTop, cap.b, 'b');    // player captured black
+    renderCap(capBottom, cap.w, 'w'); // AI captured white
+  } else {
+    renderCap(capTop, cap.w, 'w');
+    renderCap(capBottom, cap.b, 'b');
+  }
+}
+
+// ─── Move History ──────────────────────────────────────────────────
+function updateMoveHistory() {
+  const history = ChessEngine.getMoveHistory();
+  if (history.length === 0) {
+    moveHistList.innerHTML = '';
+    moveHistList.appendChild(moveHistEmpty);
+    return;
+  }
+  moveHistList.innerHTML = '';
+  // Group by pairs
+  for (let i = 0; i < history.length; i += 2) {
+    const moveNum = Math.floor(i / 2) + 1;
+    const wMove = history[i];
+    const bMove = history[i + 1];
+    const div = document.createElement('div');
+    div.className = 'move-pair';
+    const isLastW = i === history.length - 1;
+    const isLastB = i + 1 === history.length - 1;
+    div.innerHTML =
+      `<span class="move-num">${moveNum}.</span>` +
+      `<span class="move-w${isLastW ? ' move-latest' : ''}">${wMove.notation}</span>` +
+      (bMove ? `<span class="move-b${isLastB ? ' move-latest' : ''}">${bMove.notation}</span>` : '');
+    moveHistList.appendChild(div);
+  }
+  moveHistList.scrollTop = moveHistList.scrollHeight;
+}
+
+// ─── Stats ─────────────────────────────────────────────────────────
+function updateStats() {
+  const s = Storage.getStats();
+  document.getElementById('stat-played').textContent = s.gamesPlayed;
+  document.getElementById('stat-wins').textContent = s.wins;
+  document.getElementById('stat-losses').textContent = s.losses;
+}
+
+// ─── Game Over ─────────────────────────────────────────────────────
+function checkGameOver() {
+  if (!ChessEngine.isGameOver()) {
+    gameoverBanner.classList.remove('active');
+    return;
+  }
+  const status = ChessEngine.getStatus();
+  const playerWon = status === 'checkmate' && ChessEngine.getTurn() !== playerColor;
+
+  let emoji, title, sub, result;
+  if (status === 'checkmate') {
+    if (playerWon) {
+      emoji = '♛'; title = 'Victorie!'; sub = 'L-ai pus pe calculator în mat. Bravo!';
+      result = 'win';
+    } else {
+      emoji = '♟'; title = 'Mat'; sub = 'Calculatorul te-a pus în mat. Mai încearcă!';
+      result = 'loss';
+    }
+  } else {
+    emoji = '⇌'; title = 'Remiză'; sub = status === 'stalemate' ? 'Pat — nicio mutare posibilă.' : 'Remiză după 50 de mutări fără capturare sau mișcare de pion.';
+    result = 'draw';
+  }
+
+  document.getElementById('gameover-emoji').textContent = emoji;
+  document.getElementById('gameover-title').textContent = title;
+  document.getElementById('gameover-sub').textContent = sub;
+  gameoverBanner.classList.add('active');
+
+  Storage.recordResult(result);
+  Storage.addMoves(ChessEngine.getMoveHistory().length);
+  Storage.saveGameToHistory({
+    result, moves: ChessEngine.getMoveHistory().length,
+    playerColor, endFEN: ChessEngine.getFEN()
+  });
+  updateStats();
+}
+
+// ─── Square Click Handler ──────────────────────────────────────────
+function onSquareClick(r, c) {
+  if (aiThinking || ChessEngine.isGameOver() || pendingPromotion) return;
+  if (ChessEngine.getTurn() !== playerColor) return;
+
+  const board = ChessEngine.getBoard();
+  const piece = board[r][c];
+
+  // If a square is selected and we click a legal move target
+  if (selectedSquare) {
+    const targetMove = legalMovesForSelected.find(m => m.to.r === r && m.to.c === c);
+    if (targetMove) {
+      executePlayerMove(targetMove);
+      return;
+    }
+  }
+
+  // Select a piece
+  if (piece && piece.color === playerColor) {
+    selectedSquare = { r, c };
+    legalMovesForSelected = ChessEngine.getLegalMoves(r, c);
+    render();
+    return;
+  }
+
+  // Click empty / opponent without selection
+  selectedSquare = null;
+  legalMovesForSelected = [];
+  render();
+}
+
+// ─── Player Move ───────────────────────────────────────────────────
+function executePlayerMove(move) {
+  if (ChessEngine.needsPromotion(move)) {
+    pendingPromotion = move;
+    showPromoModal(playerColor);
+    return;
+  }
+  commitMove(move);
+}
+
+function commitMove(move) {
+  selectedSquare = null;
+  legalMovesForSelected = [];
+  ChessEngine.applyMove(move);
+  render();
+  checkGameOver();
+  if (!ChessEngine.isGameOver()) {
+    triggerAI();
+  }
+}
+
+// ─── Promotion Modal ───────────────────────────────────────────────
+function showPromoModal(color) {
+  const pieces = ['Q','R','B','N'];
+  const choices = document.getElementById('promo-choices');
+  choices.innerHTML = '';
+  for (const type of pieces) {
+    const btn = document.createElement('button');
+    btn.className = 'promo-btn';
+    btn.textContent = PIECE_UNICODE[color + type];
+    btn.title = { Q: 'Regină', R: 'Turn', B: 'Nebun', N: 'Cal' }[type];
+    btn.addEventListener('click', () => {
+      pendingPromotion.promotion = type;
+      promoModal.classList.remove('active');
+      commitMove(pendingPromotion);
+      pendingPromotion = null;
+    });
+    choices.appendChild(btn);
+  }
+  promoModal.classList.add('active');
+}
+
+// ─── AI Turn ───────────────────────────────────────────────────────
+async function triggerAI() {
+  if (ChessEngine.getTurn() !== aiColor || ChessEngine.isGameOver()) return;
+  aiThinking = true;
+  thinkingDot.classList.add('active');
+  updateStatusBar();
+
+  const move = await LocalEngine.getMoveWithDelay(ChessEngine, engineLevel, 450, 1100);
+
+  aiThinking = false;
+  thinkingDot.classList.remove('active');
+
+  if (!move || ChessEngine.isGameOver()) { render(); return; }
+
+  // AI promotion: always queen (best choice for beginners)
+  if (ChessEngine.needsPromotion(move)) move.promotion = 'Q';
+
+  ChessEngine.applyMove(move);
+  render();
+  checkGameOver();
+}
+
+// ─── New Game ──────────────────────────────────────────────────────
+function startNewGame() {
+  ChessEngine.init();
+  selectedSquare = null;
+  legalMovesForSelected = [];
+  pendingPromotion = null;
+  aiThinking = false;
+  thinkingDot.classList.remove('active');
+  gameoverBanner.classList.remove('active');
+  promoModal.classList.remove('active');
+  render();
+
+  // If AI plays white, trigger AI first
+  if (playerColor === 'b') {
+    setTimeout(() => triggerAI(), 600);
+  }
+}
+
+// ─── Undo ──────────────────────────────────────────────────────────
+function undoMove() {
+  // Undo 2 moves (player + AI) so it's still player's turn
+  // We re-init from initial FEN and replay all but last 2 moves
+  if (aiThinking || ChessEngine.isGameOver()) return;
+  const history = ChessEngine.getMoveHistory();
+  if (history.length === 0) return;
+
+  // Determine how many to strip: if it's player's turn, strip 2 (AI last + player last)
+  // If it's AI's turn somehow, strip 1
+  const toStrip = (history.length >= 2) ? 2 : 1;
+  const replayMoves = history.slice(0, history.length - toStrip).map(h => h.move);
+
+  ChessEngine.init();
+  for (const m of replayMoves) ChessEngine.applyMove(m);
+
+  selectedSquare = null;
+  legalMovesForSelected = [];
+  pendingPromotion = null;
+  gameoverBanner.classList.remove('active');
+  render();
+}
+
+// ─── Flip Board ────────────────────────────────────────────────────
+function flipBoard() {
+  flipped = !flipped;
+  drawBoard();
+  render();
+}
+
+// ─── Settings Overlay ──────────────────────────────────────────────
+function openSettings() {
+  // Load current settings into UI
+  const settings = Storage.getSettings();
+
+  // Color seg
+  document.querySelectorAll('#seg-color .seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === settings.playerColor);
+  });
+  // Level seg
+  document.querySelectorAll('#seg-level .seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === settings.engineLevel);
+  });
+  // Legal moves toggle
+  document.getElementById('tog-legal').checked = settings.showLegalMoves;
+
+  overlay.classList.add('active');
+}
+
+function closeSettings() {
+  overlay.classList.remove('active');
+}
+
+function applySettingsAndStart() {
+  const color = document.querySelector('#seg-color .seg-btn.active')?.dataset.val || 'w';
+  const level = document.querySelector('#seg-level .seg-btn.active')?.dataset.val || 'beginner';
+  const legalMoves = document.getElementById('tog-legal').checked;
+
+  playerColor = color;
+  aiColor = color === 'w' ? 'b' : 'w';
+  engineLevel = level;
+  showLegalMoves = legalMoves;
+  flipped = (color === 'b');
+
+  Storage.saveSettings({ playerColor: color, engineLevel: level, showLegalMoves: legalMoves });
+
+  closeSettings();
+  drawBoard();
+  startNewGame();
+}
+
+// ─── Event Bindings ────────────────────────────────────────────────
+document.getElementById('btn-settings').addEventListener('click', openSettings);
+document.getElementById('overlay-close').addEventListener('click', closeSettings);
+document.getElementById('overlay').addEventListener('click', e => { if (e.target === overlay) closeSettings(); });
+document.getElementById('overlay-confirm').addEventListener('click', applySettingsAndStart);
+document.getElementById('btn-new-game').addEventListener('click', () => { openSettings(); });
+document.getElementById('btn-undo').addEventListener('click', undoMove);
+document.getElementById('btn-flip').addEventListener('click', flipBoard);
+document.getElementById('gameover-new').addEventListener('click', () => { openSettings(); });
+
+// Segment controls
+document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
+  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+});
+
+// ─── Init ──────────────────────────────────────────────────────────
+(function init() {
+  const settings = Storage.getSettings();
+  playerColor = settings.playerColor;
+  aiColor = playerColor === 'w' ? 'b' : 'w';
+  engineLevel = settings.engineLevel;
+  showLegalMoves = settings.showLegalMoves;
+  flipped = (playerColor === 'b');
+
+  drawBoard();
+  ChessEngine.init();
+  render();
+
+  // If player is black, AI moves first
+  if (playerColor === 'b') {
+    setTimeout(() => triggerAI(), 800);
+  }
+})();
+</script>
+
+<!-- ─── Service Worker Registration ─────────────────────────────── -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
