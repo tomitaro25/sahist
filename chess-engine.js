@@ -366,6 +366,24 @@ const ChessEngine = (() => {
     updateGameStatus();
   }
 
+  /**
+   * Variantă de init pentru căutare internă (minimax/snapshot-restore).
+   * Restaurează poziția din FEN dar PĂSTREAZĂ capturedPieces și moveHistory
+   * din sesiunea de joc reală — acestea nu trebuie să fie afectate de
+   * calculele interne ale engine-ului.
+   */
+  function initForSearch(fen, savedCaptured, savedHistory) {
+    const cr = capturedPieces; // backup
+    const mh = moveHistory;    // backup
+    parseFEN(fen);
+    // Restaurează datele reale dacă sunt furnizate
+    if (savedCaptured) capturedPieces = savedCaptured;
+    else capturedPieces = cr;
+    if (savedHistory) moveHistory = savedHistory;
+    else moveHistory = mh;
+    updateGameStatus();
+  }
+
   function getBoard() { return board; }
   function getTurn() { return turn; }
   function getStatus() { return gameStatus; }
@@ -376,7 +394,7 @@ const ChessEngine = (() => {
   function isGameOver() { return ['checkmate', 'stalemate', 'draw'].includes(gameStatus); }
 
   return {
-    init, getBoard, getTurn, getStatus, getFEN,
+    init, initForSearch, getBoard, getTurn, getStatus, getFEN,
     getLegalMoves, getAllLegalMoves, applyMove, needsPromotion,
     getMoveHistory, getCapturedPieces, getEnPassantSquare, isGameOver,
     rcToAlgebraic, algebraicToRC, PIECES, INITIAL_FEN

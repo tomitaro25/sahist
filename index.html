@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-  <title>Șahist v3 Beta</title>
+  <title>Șahist v4 Beta</title>
 
   <style>
     /* ─── Tokens ─────────────────────────────────────────────── */
@@ -430,6 +430,136 @@
     .seg-btn:last-child { border-right: none; }
     .seg-btn.active { background: var(--gold); color: #1a1610; font-weight: 700; }
 
+    /* ─── Slider nivel ────────────────────────────────────────── */
+    #level-slider-wrap { width: 100%; }
+    #level-display {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    #level-number {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--gold);
+      line-height: 1;
+      min-width: 28px;
+    }
+    #level-label {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      text-align: right;
+    }
+    #level-elo {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* Track colorat pe zone */
+    #level-track {
+      position: relative;
+      height: 8px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      background: linear-gradient(to right,
+        #27ae60 0%, #27ae60 25%,      /* 1-5: Local verde */
+        #2980b9 25%, #2980b9 50%,     /* 6-10: Intermediar albastru */
+        #e67e22 50%, #e67e22 70%,     /* 11-14: Avansat portocaliu */
+        #c0392b 70%, #c0392b 85%,     /* 15-17: Expert roșu */
+        #8e44ad 85%, #8e44ad 100%     /* 18-20: Maestru violet */
+      );
+    }
+    #level-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      background: transparent;
+      outline: none;
+      cursor: pointer;
+      position: relative;
+    }
+    #level-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--gold);
+      border: 2px solid #1a1610;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      cursor: pointer;
+      margin-top: -6px;
+    }
+    #level-slider::-moz-range-thumb {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--gold);
+      border: 2px solid #1a1610;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+    .zone-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.58rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+      padding: 0 2px;
+    }
+
+    /* ─── Stockfish loading overlay ──────────────────────────── */
+    #sf-loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #sf-loading-overlay.active { display: flex; }
+    #sf-loading-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+    }
+    #sf-loading-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    #sf-loading-title {
+      font-size: 1rem;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+    #sf-loading-msg {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    #sf-progress-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    #sf-progress-bar {
+      height: 100%;
+      background: var(--gold);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    #sf-progress-pct {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
     /* Overlay action btn */
     #overlay-confirm {
       padding: 11px;
@@ -519,7 +649,7 @@
 
 <!-- ─── Topbar ──────────────────────────────────────────────────── -->
 <header id="topbar">
-  <div class="logo">♟ Șahist <span>v3 Beta</span></div>
+  <div class="logo">♟ Șahist <span>v4 Beta</span></div>
   <div id="topbar-actions">
     <div id="thinking-dot" title="Calculatorul gândește..."></div>
     <button class="icon-btn" id="btn-settings" title="Setări" aria-label="Setări">⚙</button>
@@ -644,10 +774,34 @@
         <div class="setting-label">Nivel calculator
           <small>Cât de abil e adversarul?</small>
         </div>
-        <div class="seg-ctrl" id="seg-level">
-          <button class="seg-btn active" data-val="beginner">Începător</button>
-          <button class="seg-btn" data-val="intermediate">Intermediar</button>
-          <button class="seg-btn" data-val="advanced">Avansat</button>
+      </div>
+
+      <!-- Slider 1–20 cu zone colorate -->
+      <div id="level-slider-wrap">
+        <div id="level-display">
+          <div>
+            <div id="level-number">5</div>
+          </div>
+          <div>
+            <div id="level-label">Începător</div>
+            <div id="level-elo">~900 ELO</div>
+          </div>
+        </div>
+        <div id="level-track">
+          <input type="range" id="level-slider" min="1" max="20" value="5">
+        </div>
+        <div class="zone-labels">
+          <span>🟢 Începător</span>
+          <span>🔵 Intermediar</span>
+          <span>🟠 Avansat</span>
+          <span>🔴 Expert</span>
+          <span>🟣 Maestru</span>
+        </div>
+        <div id="sf-notice" style="display:none; margin-top:8px; padding:8px; background:var(--surface2); border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-size:0.72rem; color:var(--text-dim); line-height:1.5;">
+            ♟ Nivelul ales folosește <strong style="color:var(--gold)">Stockfish</strong> (~6MB).
+            Se descarcă o singură dată, după care funcționează offline.
+          </div>
         </div>
       </div>
 
@@ -666,9 +820,23 @@
   </div>
 </div>
 
+<!-- ─── Stockfish Loading Overlay ──────────────────────────────────── -->
+<div id="sf-loading-overlay" role="dialog" aria-modal="true">
+  <div id="sf-loading-box">
+    <div id="sf-loading-icon">♟</div>
+    <div id="sf-loading-title">Se încarcă motorul Stockfish</div>
+    <div id="sf-loading-msg">Prima utilizare necesită descărcarea motorului (~6MB).<br>După aceea funcționează offline.</div>
+    <div id="sf-progress-wrap">
+      <div id="sf-progress-bar"></div>
+    </div>
+    <div id="sf-progress-pct">0%</div>
+  </div>
+</div>
+
 <!-- ─── Scripts ──────────────────────────────────────────────────── -->
 <script src="chess-engine.js"></script>
 <script src="engine-local.js"></script>
+<script src="engine-stockfish.js"></script>
 <script src="storage.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════
@@ -676,19 +844,56 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 const BOARD_SIZE = 480;
-const SQ = BOARD_SIZE / 8; // 60px per square
+const SQ = BOARD_SIZE / 8;
 const COORD_OFF = 4;
 
+// ─── Nivel data ────────────────────────────────────────────────────
+const LEVEL_DATA = {
+   1: { label: 'Începător',   elo: '~400 ELO',  engine: 'local', zone: '🟢' },
+   2: { label: 'Începător',   elo: '~550 ELO',  engine: 'local', zone: '🟢' },
+   3: { label: 'Începător',   elo: '~650 ELO',  engine: 'local', zone: '🟢' },
+   4: { label: 'Începător',   elo: '~750 ELO',  engine: 'local', zone: '🟢' },
+   5: { label: 'Începător',   elo: '~900 ELO',  engine: 'local', zone: '🟢' },
+   6: { label: 'Intermediar', elo: '~1000 ELO', engine: 'stockfish', zone: '🔵' },
+   7: { label: 'Intermediar', elo: '~1100 ELO', engine: 'stockfish', zone: '🔵' },
+   8: { label: 'Intermediar', elo: '~1200 ELO', engine: 'stockfish', zone: '🔵' },
+   9: { label: 'Intermediar', elo: '~1350 ELO', engine: 'stockfish', zone: '🔵' },
+  10: { label: 'Intermediar', elo: '~1500 ELO', engine: 'stockfish', zone: '🔵' },
+  11: { label: 'Avansat',     elo: '~1600 ELO', engine: 'stockfish', zone: '🟠' },
+  12: { label: 'Avansat',     elo: '~1700 ELO', engine: 'stockfish', zone: '🟠' },
+  13: { label: 'Avansat',     elo: '~1800 ELO', engine: 'stockfish', zone: '🟠' },
+  14: { label: 'Avansat',     elo: '~2000 ELO', engine: 'stockfish', zone: '🟠' },
+  15: { label: 'Expert',      elo: '~2100 ELO', engine: 'stockfish', zone: '🔴' },
+  16: { label: 'Expert',      elo: '~2200 ELO', engine: 'stockfish', zone: '🔴' },
+  17: { label: 'Expert',      elo: '~2400 ELO', engine: 'stockfish', zone: '🔴' },
+  18: { label: 'Maestru',     elo: '~2600 ELO', engine: 'stockfish', zone: '🟣' },
+  19: { label: 'Maestru',     elo: '~2800 ELO', engine: 'stockfish', zone: '🟣' },
+  20: { label: 'Maestru',     elo: '~3600 ELO', engine: 'stockfish', zone: '🟣' },
+};
+
 // ─── State ────────────────────────────────────────────────────────
-let selectedSquare = null; // {r, c}
+let selectedSquare    = null;
 let legalMovesForSelected = [];
-let flipped = false;        // board orientation
-let playerColor = 'w';
-let aiColor = 'b';
-let engineLevel = 'beginner';
-let showLegalMoves = true;
-let pendingPromotion = null; // {move} waiting for user choice
-let aiThinking = false;
+let flipped           = false;
+let playerColor       = 'w';
+let aiColor           = 'b';
+let engineLevel       = 5;        // număr 1–20
+let showLegalMoves    = true;
+let pendingPromotion  = null;
+let aiThinking        = false;
+let stockfishReady    = false;    // Stockfish e inițializat și ready
+
+// ─── Fetch config.json la pornire (non-blocking) ──────────────────
+(async function fetchConfig() {
+  try {
+    const resp = await fetch('./config.json', { cache: 'no-cache' });
+    if (!resp.ok) return;
+    const cfg = await resp.json();
+    if (cfg?.stockfish?.url) {
+      localStorage.setItem('sahist_stockfish_url', cfg.stockfish.url);
+    }
+  } catch { /* offline sau eroare — folosim URL din localStorage sau fallback */ }
+})();
 
 // ─── DOM refs ─────────────────────────────────────────────────────
 const boardSVG       = document.getElementById('board-svg');
@@ -1082,7 +1287,8 @@ function onSquareClick(r, c) {
   const board = ChessEngine.getBoard();
   const piece = board[r][c];
 
-  // If a square is selected and we click a legal move target
+  // Dacă avem o piesă selectată, verificăm ÎNTÂI dacă pătratul e o mutare legală
+  // (inclusiv rocada, unde destinația poate fi ocupată de tura proprie)
   if (selectedSquare) {
     const targetMove = legalMovesForSelected.find(m => m.to.r === r && m.to.c === c);
     if (targetMove) {
@@ -1091,7 +1297,7 @@ function onSquareClick(r, c) {
     }
   }
 
-  // Select a piece
+  // Selectează o piesă proprie (sau re-selectează alta)
   if (piece && piece.color === playerColor) {
     selectedSquare = { r, c };
     legalMovesForSelected = ChessEngine.getLegalMoves(r, c);
@@ -1099,7 +1305,7 @@ function onSquareClick(r, c) {
     return;
   }
 
-  // Click empty / opponent without selection
+  // Click pe gol sau piesă adversă fără selecție → deselectează
   selectedSquare = null;
   legalMovesForSelected = [];
   render();
@@ -1154,19 +1360,62 @@ async function triggerAI() {
   thinkingDot.classList.add('active');
   updateStatusBar();
 
-  const move = await LocalEngine.getMoveWithDelay(ChessEngine, engineLevel, 450, 1100);
+  let move = null;
+
+  try {
+    if (engineLevel <= 5) {
+      // Local engine (nivele 1-5)
+      move = await LocalEngine.getMoveWithDelay(ChessEngine, engineLevel);
+    } else {
+      // Stockfish (nivele 6-20)
+      if (!stockfishReady) {
+        // Inițializează Stockfish la prima utilizare
+        await initStockfish();
+      }
+      move = await StockfishEngine.getMoveWithDelay(ChessEngine, engineLevel);
+    }
+  } catch (err) {
+    console.error('AI error:', err);
+    // Fallback la engine local nivel 5
+    move = await LocalEngine.getMoveWithDelay(ChessEngine, 5);
+  }
 
   aiThinking = false;
   thinkingDot.classList.remove('active');
 
   if (!move || ChessEngine.isGameOver()) { render(); return; }
 
-  // AI promotion: always Queen (strongest choice, realistic for any level)
-  if (ChessEngine.needsPromotion(move)) move.promotion = 'Q';
+  if (ChessEngine.needsPromotion(move)) move.promotion = move.promotion || 'Q';
 
   ChessEngine.applyMove(move);
   render();
   checkGameOver();
+}
+
+// ─── Inițializare Stockfish ────────────────────────────────────────
+async function initStockfish() {
+  const sfOverlay  = document.getElementById('sf-loading-overlay');
+  const sfBar      = document.getElementById('sf-progress-bar');
+  const sfPct      = document.getElementById('sf-progress-pct');
+
+  sfOverlay.classList.add('active');
+
+  await StockfishEngine.init(
+    (state, msg) => {
+      if (state === 'ready') {
+        stockfishReady = true;
+        sfOverlay.classList.remove('active');
+      } else if (state === 'error') {
+        sfOverlay.classList.remove('active');
+        stockfishReady = false;
+      }
+    },
+    (progress) => {
+      const pct = Math.round(progress * 100);
+      sfBar.style.width = pct + '%';
+      sfPct.textContent = pct + '%';
+    }
+  );
 }
 
 // ─── New Game ──────────────────────────────────────────────────────
@@ -1235,21 +1484,28 @@ function flipBoard() {
 }
 
 // ─── Settings Overlay ──────────────────────────────────────────────
-function openSettings() {
-  // Load current settings into UI
-  const settings = Storage.getSettings();
+function updateSliderUI(level) {
+  const data = LEVEL_DATA[level] || LEVEL_DATA[5];
+  document.getElementById('level-number').textContent = level;
+  document.getElementById('level-label').textContent = data.zone + ' ' + data.label;
+  document.getElementById('level-elo').textContent = data.elo;
+  // Arată notice Stockfish dacă nivel > 5
+  const notice = document.getElementById('sf-notice');
+  if (notice) notice.style.display = level > 5 ? 'block' : 'none';
+}
 
+function openSettings() {
+  const settings = Storage.getSettings();
   // Color seg
   document.querySelectorAll('#seg-color .seg-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.val === settings.playerColor);
   });
-  // Level seg
-  document.querySelectorAll('#seg-level .seg-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.val === settings.engineLevel);
-  });
+  // Slider
+  const savedLevel = typeof settings.engineLevel === 'number' ? settings.engineLevel : 5;
+  const slider = document.getElementById('level-slider');
+  if (slider) { slider.value = savedLevel; updateSliderUI(savedLevel); }
   // Legal moves toggle
   document.getElementById('tog-legal').checked = settings.showLegalMoves;
-
   overlay.classList.add('active');
 }
 
@@ -1259,17 +1515,23 @@ function closeSettings() {
 
 function applySettingsAndStart() {
   const color = document.querySelector('#seg-color .seg-btn.active')?.dataset.val || 'w';
-  const level = document.querySelector('#seg-level .seg-btn.active')?.dataset.val || 'beginner';
+  const slider = document.getElementById('level-slider');
+  const level = slider ? parseInt(slider.value) : 5;
   const legalMoves = document.getElementById('tog-legal').checked;
 
-  playerColor = color;
-  aiColor = color === 'w' ? 'b' : 'w';
-  engineLevel = level;
+  playerColor  = color;
+  aiColor      = color === 'w' ? 'b' : 'w';
+  engineLevel  = level;
   showLegalMoves = legalMoves;
-  flipped = (color === 'b');
+  flipped      = (color === 'b');
+
+  // Dacă schimbă spre local de la Stockfish, oprește Stockfish
+  if (level <= 5 && stockfishReady) {
+    StockfishEngine.destroy();
+    stockfishReady = false;
+  }
 
   Storage.saveSettings({ playerColor: color, engineLevel: level, showLegalMoves: legalMoves });
-
   closeSettings();
   drawBoard();
   startNewGame();
@@ -1285,7 +1547,15 @@ document.getElementById('btn-undo').addEventListener('click', undoMove);
 document.getElementById('btn-flip').addEventListener('click', flipBoard);
 document.getElementById('gameover-new').addEventListener('click', () => { openSettings(); });
 
-// Segment controls
+// Slider nivel
+const levelSlider = document.getElementById('level-slider');
+if (levelSlider) {
+  levelSlider.addEventListener('input', () => {
+    updateSliderUI(parseInt(levelSlider.value));
+  });
+}
+
+// Segment controls (culoare)
 document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
   ctrl.querySelectorAll('.seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1298,27 +1568,27 @@ document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
 // ─── Init ──────────────────────────────────────────────────────────
 (function init() {
   const settings = Storage.getSettings();
-  playerColor = settings.playerColor;
-  aiColor = playerColor === 'w' ? 'b' : 'w';
-  engineLevel = settings.engineLevel;
+  playerColor  = settings.playerColor;
+  aiColor      = playerColor === 'w' ? 'b' : 'w';
+  // Migrare: dacă era string ('beginner'/'advanced'), convertim la număr
+  engineLevel  = typeof settings.engineLevel === 'number'
+    ? settings.engineLevel
+    : (settings.engineLevel === 'advanced' ? 5 : 2);
   showLegalMoves = settings.showLegalMoves;
-  flipped = (playerColor === 'b');
+  flipped      = (playerColor === 'b');
 
   drawBoard();
   ChessEngine.init();
   render();
 
-  // If player is black, AI moves first
-  if (playerColor === 'b') {
-    setTimeout(() => triggerAI(), 800);
-  }
+  if (playerColor === 'b') setTimeout(() => triggerAI(), 800);
 })();
 </script>
 
 <!-- ─── Version check + Service Worker Registration ──────────────── -->
 <script>
 (function() {
-  const APP_VERSION = 'sahist-v3';
+  const APP_VERSION = 'sahist-v4';
 
   // ── Mecanism de update care funcționează atât pe file:// cât și pe HTTP ──
 

@@ -4,14 +4,16 @@
  * Răspunde la mesajul SKIP_WAITING pentru preluare imediată.
  */
 
-const CACHE = 'sahist-v3';
+const CACHE = 'sahist-v4';
 const ASSETS = [
   './',
   './index.html',
   './chess-engine.js',
   './engine-local.js',
   './storage.js',
-  './manifest.json'
+  './manifest.json',
+  './config.json',
+  './engine-stockfish.js'
 ];
 
 self.addEventListener('install', e => {
