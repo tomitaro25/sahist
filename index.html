@@ -541,11 +541,7 @@
     <div id="board-wrap">
       <svg id="board-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg"
            role="img" aria-label="Tablă de șah">
-        <defs>
-          <filter id="piece-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.45"/>
-          </filter>
-        </defs>
+        <defs></defs>
         <!-- Squares, pieces, highlights rendered by JS -->
         <g id="board-squares"></g>
         <g id="board-highlights"></g>
@@ -724,6 +720,29 @@ function rcToXY(r, c) {
   return { x: dc * SQ, y: dr * SQ };
 }
 
+// ─── Color constants (hardcoded for Chrome SVG setAttribute compatibility) ──
+// Chrome does not resolve CSS variables inside SVG setAttribute() calls.
+// All SVG fill/stroke values must be literal hex or rgba strings.
+const C = {
+  lightSq:     '#e8d5a3',
+  darkSq:      '#8a6642',
+  lightSqSel:  '#f5e87a',
+  darkSqSel:   '#b5a020',
+  lightSqChk:  'rgba(220,60,60,0.52)',
+  darkSqChk:   'rgba(180,30,30,0.62)',
+  coord:       '#55534f',
+  // Pieces — white
+  wFill:       '#f5f0e8',
+  wStroke:     '#7a6040',
+  // Pieces — black
+  bFill:       '#1e1a16',
+  bStroke:     '#c8a855',
+  // Highlight overlays
+  lastMoveFill: 'rgba(180,210,80,0.42)',
+  dotFill:     'rgba(60,160,60,0.55)',
+  ringStroke:  'rgba(60,160,60,0.72)',
+};
+
 // ─── Board Drawing ─────────────────────────────────────────────────
 function drawBoard() {
   sqGroup.innerHTML = '';
@@ -735,7 +754,7 @@ function drawBoard() {
       const light = (r + c) % 2 === 0;
       const rect = svgEl('rect', {
         x, y, width: SQ, height: SQ,
-        fill: light ? 'var(--light-sq)' : 'var(--dark-sq)',
+        fill: light ? C.lightSq : C.darkSq,
         'data-r': r, 'data-c': c,
         style: 'cursor:pointer'
       });
@@ -746,23 +765,25 @@ function drawBoard() {
 
   // Coordinate labels
   for (let i = 0; i < 8; i++) {
-    // Files (a-h) on bottom rank
     const {x} = rcToXY(7, i);
     const fileLabel = svgEl('text', {
       x: x + SQ - COORD_OFF - 1,
       y: BOARD_SIZE - COORD_OFF,
-      class: 'coord',
+      fill: C.coord,
+      'font-size': '9',
+      'font-family': 'monospace',
       'text-anchor': 'end'
     });
     fileLabel.textContent = (flipped ? 'hgfedcba' : 'abcdefgh')[i];
     coordGroup.appendChild(fileLabel);
 
-    // Ranks (1-8) on left file
     const {y} = rcToXY(i, 0);
     const rankLabel = svgEl('text', {
       x: COORD_OFF,
       y: y + COORD_OFF + 7,
-      class: 'coord',
+      fill: C.coord,
+      'font-size': '9',
+      'font-family': 'monospace',
       'text-anchor': 'start'
     });
     rankLabel.textContent = flipped ? (i + 1) : (8 - i);
@@ -783,17 +804,15 @@ function drawHighlights() {
     const last = history[history.length - 1].move;
     for (const sq of [last.from, last.to]) {
       const {x, y} = rcToXY(sq.r, sq.c);
-      const light = (sq.r + sq.c) % 2 === 0;
       const rect = svgEl('rect', {
         x, y, width: SQ, height: SQ,
-        fill: light ? 'var(--light-sq-sel)' : 'var(--dark-sq-sel)',
-        opacity: '0.55'
+        fill: C.lastMoveFill
       });
       hlGroup.appendChild(rect);
     }
   }
 
-  // Check highlight
+  // Check / checkmate — king square red
   if (status === 'check' || status === 'checkmate') {
     const kingColor = ChessEngine.getTurn();
     for (let r = 0; r < 8; r++)
@@ -803,7 +822,7 @@ function drawHighlights() {
           const light = (r + c) % 2 === 0;
           const rect = svgEl('rect', {
             x, y, width: SQ, height: SQ,
-            fill: light ? 'var(--light-sq-chk)' : 'var(--dark-sq-chk)'
+            fill: light ? C.lightSqChk : C.darkSqChk
           });
           hlGroup.appendChild(rect);
         }
@@ -815,39 +834,36 @@ function drawHighlights() {
     const light = (selectedSquare.r + selectedSquare.c) % 2 === 0;
     const rect = svgEl('rect', {
       x, y, width: SQ, height: SQ,
-      fill: light ? 'var(--light-sq-sel)' : 'var(--dark-sq-sel)'
+      fill: light ? C.lightSqSel : C.darkSqSel
     });
     hlGroup.appendChild(rect);
   }
 
-  // Legal move dots
+  // Legal move dots / rings
   if (showLegalMoves && selectedSquare) {
     for (const m of legalMovesForSelected) {
       const {x, y} = rcToXY(m.to.r, m.to.c);
       const hasCapture = ChessEngine.getBoard()[m.to.r][m.to.c] || m.enPassant;
       if (hasCapture) {
-        // Ring for captures
         const ring = svgEl('circle', {
-          cx: x + SQ/2, cy: y + SQ/2, r: SQ/2 - 3,
+          cx: x + SQ/2, cy: y + SQ/2, r: SQ/2 - 4,
           fill: 'none',
-          stroke: 'rgba(80,180,80,0.7)',
+          stroke: C.ringStroke,
           'stroke-width': '5'
         });
         hlGroup.appendChild(ring);
       } else {
-        // Dot for quiet moves
         const dot = svgEl('circle', {
-          cx: x + SQ/2, cy: y + SQ/2, r: SQ/6,
-          fill: 'rgba(80,180,80,0.6)'
+          cx: x + SQ/2, cy: y + SQ/2, r: SQ * 0.15,
+          fill: C.dotFill
         });
         hlGroup.appendChild(dot);
       }
-      // Invisible click target
+      // Invisible click target over the whole square
       const clickTarget = svgEl('rect', {
         x, y, width: SQ, height: SQ,
         fill: 'transparent',
-        style: 'cursor:pointer',
-        'data-r': m.to.r, 'data-c': m.to.c
+        style: 'cursor:pointer'
       });
       clickTarget.addEventListener('click', () => onSquareClick(m.to.r, m.to.c));
       hlGroup.appendChild(clickTarget);
@@ -871,20 +887,52 @@ function drawPieces() {
       if (!p) continue;
       const {x, y} = rcToXY(r, c);
       const isSelected = selectedSquare?.r === r && selectedSquare?.c === c;
+      const isPlayer = p.color === playerColor && !aiThinking && !ChessEngine.isGameOver();
+      const cx = x + SQ / 2;
+      const cy = y + SQ / 2;
+      const fontSize = isSelected ? SQ * 0.78 : SQ * 0.82;
+      const dy = isSelected ? -2 : 0;
 
-      // Piece text
-      const text = svgEl('text', {
-        x: x + SQ/2,
-        y: y + SQ/2 + 1,
+      // Shadow layer (slightly offset, dark, semi-transparent)
+      const shadow = svgEl('text', {
+        x: cx + 1.5,
+        y: cy + 3.5 + dy,
         'text-anchor': 'middle',
         'dominant-baseline': 'central',
-        'font-size': isSelected ? SQ * 0.68 : SQ * 0.72,
-        fill: p.color === 'w' ? 'var(--w-piece)' : 'var(--b-piece)',
-        stroke: p.color === 'w' ? 'var(--w-piece-str)' : 'var(--b-piece-str)',
-        'stroke-width': '0.8',
-        filter: 'url(#piece-shadow)',
-        style: `cursor:${p.color === playerColor && !aiThinking && !ChessEngine.isGameOver() ? 'pointer' : 'default'}`,
-        transform: isSelected ? `translate(0,-2)` : ''
+        'font-size': fontSize,
+        fill: 'rgba(0,0,0,0.38)',
+        style: 'pointer-events:none; user-select:none'
+      });
+      shadow.textContent = PIECE_UNICODE[p.color + p.type];
+      pieceGroup.appendChild(shadow);
+
+      // Outline layer (thick stroke, contrasting color)
+      const outline = svgEl('text', {
+        x: cx,
+        y: cy + dy,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central',
+        'font-size': fontSize,
+        fill: 'none',
+        stroke: p.color === 'w' ? C.wStroke : C.bStroke,
+        'stroke-width': '4',
+        'stroke-linejoin': 'round',
+        style: 'pointer-events:none; user-select:none'
+      });
+      outline.textContent = PIECE_UNICODE[p.color + p.type];
+      pieceGroup.appendChild(outline);
+
+      // Main piece fill
+      const text = svgEl('text', {
+        x: cx,
+        y: cy + dy,
+        'text-anchor': 'middle',
+        'dominant-baseline': 'central',
+        'font-size': fontSize,
+        fill: p.color === 'w' ? C.wFill : C.bFill,
+        stroke: p.color === 'w' ? C.wStroke : C.bStroke,
+        'stroke-width': '0.5',
+        style: `cursor:${isPlayer ? 'pointer' : 'default'}; user-select:none`
       });
       text.textContent = PIECE_UNICODE[p.color + p.type];
       text.addEventListener('click', () => onSquareClick(r, c));
@@ -1111,7 +1159,7 @@ async function triggerAI() {
 
   if (!move || ChessEngine.isGameOver()) { render(); return; }
 
-  // AI promotion: always queen (best choice for beginners)
+  // AI promotion: always Queen (strongest choice, realistic for any level)
   if (ChessEngine.needsPromotion(move)) move.promotion = 'Q';
 
   ChessEngine.applyMove(move);
@@ -1139,23 +1187,40 @@ function startNewGame() {
 
 // ─── Undo ──────────────────────────────────────────────────────────
 function undoMove() {
-  // Undo 2 moves (player + AI) so it's still player's turn
-  // We re-init from initial FEN and replay all but last 2 moves
-  if (aiThinking || ChessEngine.isGameOver()) return;
+  if (aiThinking) return;
   const history = ChessEngine.getMoveHistory();
   if (history.length === 0) return;
 
-  // Determine how many to strip: if it's player's turn, strip 2 (AI last + player last)
-  // If it's AI's turn somehow, strip 1
-  const toStrip = (history.length >= 2) ? 2 : 1;
-  const replayMoves = history.slice(0, history.length - toStrip).map(h => h.move);
+  // Strip moves until it's the player's turn again:
+  // - Normal: strip last AI move + last player move (2 moves back)
+  // - If game over: strip just enough to get back to player turn
+  // - If player is black and only 1 move played (AI's first): strip 1
+  let toStrip = 0;
+  const histLen = history.length;
 
+  // Walk back from end until we find a state where it's player's turn
+  // Player turn = move count parity matches playerColor
+  // After N moves: turn is 'w' if N is even, 'b' if N is odd
+  const playerIsWhite = playerColor === 'w';
+  for (let strip = 1; strip <= histLen; strip++) {
+    const remaining = histLen - strip;
+    const turnAfterRemaining = (remaining % 2 === 0) ? 'w' : 'b';
+    if (turnAfterRemaining === playerColor) {
+      toStrip = strip;
+      break;
+    }
+  }
+  if (toStrip === 0) toStrip = Math.min(2, histLen);
+
+  const replayMoves = history.slice(0, histLen - toStrip).map(h => h.move);
   ChessEngine.init();
   for (const m of replayMoves) ChessEngine.applyMove(m);
 
   selectedSquare = null;
   legalMovesForSelected = [];
   pendingPromotion = null;
+  aiThinking = false;
+  thinkingDot.classList.remove('active');
   gameoverBanner.classList.remove('active');
   render();
 }
