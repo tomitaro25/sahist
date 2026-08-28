@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-  <title>Șahist</title>
+  <title>Șahist v2 Beta</title>
 
   <style>
     /* ─── Tokens ─────────────────────────────────────────────── */
@@ -519,7 +519,7 @@
 
 <!-- ─── Topbar ──────────────────────────────────────────────────── -->
 <header id="topbar">
-  <div class="logo">♟ Șahist <span>v1.0</span></div>
+  <div class="logo">♟ Șahist <span>v2 Beta</span></div>
   <div id="topbar-actions">
     <div id="thinking-dot" title="Calculatorul gândește..."></div>
     <button class="icon-btn" id="btn-settings" title="Setări" aria-label="Setări">⚙</button>
@@ -1316,8 +1316,27 @@ document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
 <!-- ─── Service Worker Registration ─────────────────────────────── -->
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js');
+
+      // Verifică imediat dacă există o versiune nouă
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          // Când noul SW e gata și există deja un SW activ (nu prima instalare)
+          if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+            // Reîncarcă automat pentru a folosi noile fișiere din cache
+            window.location.reload();
+          }
+        });
+      });
+
+      // Forțează verificarea update-ului la fiecare încărcare
+      reg.update();
+    } catch (e) {
+      // SW nu e disponibil (file://, etc.) — merge și fără
+    }
   });
 }
 </script>
