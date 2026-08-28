@@ -1315,32 +1315,65 @@ document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
 })();
 </script>
 
-<!-- ─── Service Worker Registration ─────────────────────────────── -->
+<!-- ─── Version check + Service Worker Registration ──────────────── -->
 <script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try {
-      const reg = await navigator.serviceWorker.register('sw.js');
+(function() {
+  const APP_VERSION = 'sahist-v3';
 
-      // Verifică imediat dacă există o versiune nouă
-      reg.addEventListener('updatefound', () => {
-        const newSW = reg.installing;
-        newSW.addEventListener('statechange', () => {
-          // Când noul SW e gata și există deja un SW activ (nu prima instalare)
-          if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
-            // Reîncarcă automat pentru a folosi noile fișiere din cache
-            window.location.reload();
-          }
-        });
+  // ── Mecanism de update care funcționează atât pe file:// cât și pe HTTP ──
+
+  // 1. Verifică dacă versiunea din localStorage diferă de cea curentă
+  //    Dacă da, curăță cache-ul vechi și forțează reload cu fișierele noi
+  const storedVersion = localStorage.getItem('sahist_app_version');
+  if (storedVersion && storedVersion !== APP_VERSION) {
+    // Versiune nouă detectată — curăță cache SW și forțează reload curat
+    localStorage.setItem('sahist_app_version', APP_VERSION);
+    if ('caches' in window) {
+      caches.keys().then(keys =>
+        Promise.all(keys.filter(k => k.startsWith('sahist-')).map(k => caches.delete(k)))
+      ).then(() => {
+        // Hard reload — ignoră complet cache-ul browserului
+        window.location.reload(true);
       });
-
-      // Forțează verificarea update-ului la fiecare încărcare
-      reg.update();
-    } catch (e) {
-      // SW nu e disponibil (file://, etc.) — merge și fără
+    } else {
+      window.location.reload(true);
     }
-  });
-}
+    return; // oprește execuția până la reload
+  }
+  // Prima rulare sau versiune corectă — salvează versiunea curentă
+  localStorage.setItem('sahist_app_version', APP_VERSION);
+
+  // 2. Service Worker — activ doar pe HTTP(S), nu pe file://
+  //    Pe GitHub Pages va funcționa automat; pe file:// e skip
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', async () => {
+      try {
+        const reg = await navigator.serviceWorker.register('sw.js');
+
+        // Când găsește un SW nou, îl activează imediat
+        reg.addEventListener('updatefound', () => {
+          const newSW = reg.installing;
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              // Trimite mesaj SW-ului să preia controlul imediat
+              newSW.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        });
+
+        // Când SW-ul nou preia controlul, reîncarcă pagina
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
+
+        // Forțează verificarea la fiecare încărcare
+        reg.update();
+      } catch (e) {
+        // SW indisponibil — aplicația merge și fără
+      }
+    });
+  }
+})();
 </script>
 </body>
 </html>
