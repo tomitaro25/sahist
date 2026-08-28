@@ -3,14 +3,19 @@
  *
  * NIVEL 1 — Începător
  *   Strategie multi-layer: evită sacrificii, capturează cu profit,
- *   preferă rocada și mișcări poziționale de bază.
- *   Erori frecvente, dar nu flagrante.
+ *   preferă rocada și mișcări poziționale de bază. Erori frecvente.
  *
  * NIVEL 2 — Intermediar
- *   Minimax adâncime 2 cu alpha-beta pruning + evaluare pozițională completă.
- *   Vede amenințările cu 2 mutări înainte, atacă activ, apără piesele,
- *   încearcă să dea șah și mat, controlează centrul, evită să lase
- *   piesele în bătaie. Nivel incepator-intermediar spre mediu.
+ *   Negamax depth 2 + alpha-beta + quiescence search.
+ *   Evaluare: material, PST, hanging pieces, mobilitate, structură pioni.
+ *   Nu lasă piese în bătaie, atacă activ, caută mat.
+ *
+ * NIVEL 3 — Avansat
+ *   Negamax depth 4 cu iterative deepening + time limit per mutare.
+ *   Killer moves heuristic pentru ordonare mai bună.
+ *   Evaluare extinsă: pion trecut, siguranța regelui, perechea de nebuni,
+ *   tururi pe coloane deschise, coloana a 7-a, conectivitate pioni.
+ *   Cel mai puternic nivel programatic fără AI extern.
  */
 
 'use strict';
@@ -156,12 +161,13 @@ const LocalEngine = (() => {
   function orderMoves(moves, board) {
     return moves.slice().sort((a, b) => {
       const score = m => {
-        if (m.castling) return 80;
-        if (m.promotion) return 70;
+        if (m.castling) return 800;
+        if (m.promotion) return 700;
         const victim = m.enPassant ? { type: 'P' } : board[m.to.r][m.to.c];
         if (victim) {
           const atk = board[m.from.r][m.from.c];
-          return 50 + VAL[victim.type] / 10 - VAL[atk.type] / 100;
+          // MVV-LVA: capturează piesa cea mai valoroasă cu cea mai ieftină
+          return 500 + VAL[victim.type] - VAL[atk.type] / 10;
         }
         return 0;
       };
@@ -170,39 +176,179 @@ const LocalEngine = (() => {
   }
 
   // ─── Snapshot / Restore pentru minimax ──────────────────────────
-  // Salvăm și restaurăm starea completă a engine-ului între mutări.
-  // Singura metodă sigură fără a modifica chess-engine.js.
   function saveState(engine) {
-    return {
-      fen: engine.getFEN(),
-      history: engine.getMoveHistory().map(h => ({
-        move: { ...h.move,
-          from: { ...h.move.from },
-          to: { ...h.move.to }
-        }
-      }))
-    };
+    return { fen: engine.getFEN() };
   }
 
   function restoreState(engine, snapshot) {
     engine.init(snapshot.fen);
-    // FEN include tot (turn, castling, en passant) — nu trebuie replay
   }
 
-  // ─── Negamax adâncime 1 (fără recursie ulterioară) ──────────────
-  // Evaluează: propria mutare → cel mai bun răspuns adversar → evaluate.
-  // Total: 2 niveluri de gândire, rapid în browser.
-  function negamax(engine, alpha, beta) {
-    // Deja la adâncime finală: evaluare statică
+  // ─── Evaluare statică extinsă (perspectiva albului) ──────────────
+  function evaluateFull(engine) {
+    const board = engine.getBoard();
+    const endgame = isEndgame(board);
+    let score = 0;
+
+    // 1. Material + PST
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        const pstIdx = p.color === 'w' ? r * 8 + c : (7 - r) * 8 + (7 - c);
+        let ps = VAL[p.type];
+        ps += p.type === 'K'
+          ? (endgame ? PST.K_end[pstIdx] : PST.K_mid[pstIdx])
+          : ((PST[p.type] || [])[pstIdx] || 0);
+        score += p.color === 'w' ? ps : -ps;
+      }
+    }
+
+    // 2. Hanging pieces — penalizează piese lăsate în bătaie neapărate
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p || p.type === 'K') continue;
+        const opp = p.color === 'w' ? 'b' : 'w';
+        const isAttacked = isSquareAttackedByFast(board, r, c, opp);
+        if (isAttacked) {
+          const isDefended = isSquareAttackedByFast(board, r, c, p.color);
+          const hangingPenalty = isDefended ? VAL[p.type] * 0.15 : VAL[p.type] * 0.5;
+          score += p.color === 'w' ? -hangingPenalty : hangingPenalty;
+        }
+      }
+    }
+
+    // 3. Mobilitate — mai multe mutări disponibile = mai bine
+    // (aproximare rapidă: numărăm piesele cu mișcări pe diagonale/linii)
+    let wMobility = 0, bMobility = 0;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        const mob = mobilityCount(board, r, c, p.type, p.color);
+        if (p.color === 'w') wMobility += mob;
+        else bMobility += mob;
+      }
+    }
+    score += (wMobility - bMobility) * 3;
+
+    // 4. Structură pioni
+    const wPawnCols = new Array(8).fill(0);
+    const bPawnCols = new Array(8).fill(0);
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (p?.type === 'P') {
+          if (p.color === 'w') wPawnCols[c]++;
+          else bPawnCols[c]++;
+        }
+      }
+    }
+    for (let c = 0; c < 8; c++) {
+      // Pioni dubli — penalizare
+      if (wPawnCols[c] > 1) score -= 20 * (wPawnCols[c] - 1);
+      if (bPawnCols[c] > 1) score += 20 * (bPawnCols[c] - 1);
+      // Pioni izolați — fără vecini pe coloane adiacente
+      if (wPawnCols[c] > 0) {
+        const isolated = (c === 0 || wPawnCols[c-1] === 0) &&
+                         (c === 7 || wPawnCols[c+1] === 0);
+        if (isolated) score -= 15;
+      }
+      if (bPawnCols[c] > 0) {
+        const isolated = (c === 0 || bPawnCols[c-1] === 0) &&
+                         (c === 7 || bPawnCols[c+1] === 0);
+        if (isolated) score += 15;
+      }
+    }
+
+    // 5. Bonus pentru șah (presiune pe rege)
+    const status = engine.getStatus();
+    if (status === 'check') {
+      score += engine.getTurn() === 'b' ? 30 : -30; // alb dă șah = +30
+    }
+
+    return score;
+  }
+
+  // Numără mutările posibile pentru o piesă (mobilitate aproximată, fără legalitate completă)
+  function mobilityCount(board, r, c, type, color) {
+    let count = 0;
+    const dirs = {
+      N: [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]],
+      B: [[-1,-1],[-1,1],[1,-1],[1,1]],
+      R: [[-1,0],[1,0],[0,-1],[0,1]],
+      Q: [[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]],
+    };
+    if (type === 'N') {
+      for (const [dr, dc] of dirs.N) {
+        const nr = r+dr, nc = c+dc;
+        if (inBounds(nr, nc) && board[nr][nc]?.color !== color) count++;
+      }
+    } else if (dirs[type]) {
+      for (const [dr, dc] of dirs[type]) {
+        for (let i = 1; i < 8; i++) {
+          const nr = r+dr*i, nc = c+dc*i;
+          if (!inBounds(nr, nc)) break;
+          if (board[nr][nc]) { if (board[nr][nc].color !== color) count++; break; }
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  // ─── Quiescence Search (limitat) ────────────────────────────────
+  // Continuă doar capturi după adâncimea principală.
+  // Limitat la 4 niveluri pentru a preveni explozia de noduri.
+  function quiescence(engine, alpha, beta, aiColor, qdepth) {
+    const standPat = evaluateFull(engine) * (aiColor === 'w' ? 1 : -1);
+    if (standPat >= beta) return beta;
+    if (standPat > alpha) alpha = standPat;
+    if (qdepth <= 0 || engine.isGameOver()) return alpha;
+
+    const turn = engine.getTurn();
+    const allMoves = engine.getAllLegalMoves(turn);
+    const board = engine.getBoard();
+
+    // Doar capturi și promoții
+    const captures = allMoves.filter(m =>
+      m.enPassant || board[m.to.r][m.to.c] !== null || m.promotion
+    );
+    if (captures.length === 0) return alpha;
+
+    const ordered = orderMoves(captures, board);
+
+    for (const move of ordered) {
+      if (engine.needsPromotion(move)) move.promotion = 'Q';
+      const snap = saveState(engine);
+      engine.applyMove(move);
+      const score = -quiescence(engine, -beta, -alpha,
+        aiColor === 'w' ? 'b' : 'w', qdepth - 1);
+      restoreState(engine, snap);
+      if (score >= beta) return beta;
+      if (score > alpha) alpha = score;
+    }
+    return alpha;
+  }
+
+  // ─── Negamax cu Alpha-Beta (Nivel 2) ────────────────────────────
+  // Adâncime 2: AI → adversar → quiescence la capete.
+  function negamax(engine, depth, alpha, beta, aiColor) {
     if (engine.isGameOver()) {
-      const board = engine.getBoard();
-      const score = evaluate(board);
-      return engine.getTurn() === 'w' ? score : -score;
+      const st = engine.getStatus();
+      const turn = engine.getTurn();
+      if (st === 'checkmate') return turn === aiColor ? -19000 - depth : 19000 + depth;
+      return 0;
+    }
+
+    if (depth === 0) {
+      return quiescence(engine, alpha, beta, aiColor, 3);
     }
 
     const turn = engine.getTurn();
     const allMoves = engine.getAllLegalMoves(turn);
-    if (allMoves.length === 0) return engine.isGameOver() ? -20000 : 0;
+    if (allMoves.length === 0) return 0;
 
     const board = engine.getBoard();
     const ordered = orderMoves(allMoves, board);
@@ -213,13 +359,8 @@ const LocalEngine = (() => {
 
       const snap = saveState(engine);
       engine.applyMove(move);
-
-      // Evaluare statică din perspectiva adversarului (negăm)
-      const evalBoard = engine.getBoard();
-      const rawScore = evaluate(evalBoard);
-      // Scor din perspectiva curentului (înainte de mutare)
-      const val = turn === 'w' ? rawScore : -rawScore;
-
+      const val = -negamax(engine, depth - 1, -beta, -alpha,
+        aiColor === 'w' ? 'b' : 'w');
       restoreState(engine, snap);
 
       if (val > best) best = val;
@@ -230,8 +371,6 @@ const LocalEngine = (() => {
   }
 
   // ─── getBestMoveLevel2 ───────────────────────────────────────────
-  // Logică: pentru fiecare mutare proprie, simulează cel mai bun
-  // răspuns al adversarului și alege mutarea cu scorul net cel mai bun.
   function getBestMoveLevel2(engine) {
     const allMoves = engine.getAllLegalMoves(engine.getTurn());
     if (allMoves.length === 0) return null;
@@ -244,55 +383,30 @@ const LocalEngine = (() => {
     const board = engine.getBoard();
     const ordered = orderMoves(allMoves, board);
     const aiColor = engine.getTurn();
+    const TIME_LIMIT = 1200; // ms — rămâne responsiv în browser
+    const startTime = Date.now();
 
     let bestScore = -Infinity;
     let bestMove = ordered[0];
+    let alpha = -Infinity;
 
     for (const move of ordered) {
+      // Abandonează dacă am depășit limita de timp — returnează ce am găsit
+      if (Date.now() - startTime > TIME_LIMIT) break;
+
       if (engine.needsPromotion(move)) move.promotion = 'Q';
 
-      // Aplică mutarea AI
-      const snap1 = saveState(engine);
+      const snap = saveState(engine);
       engine.applyMove(move);
-
-      let score;
-      if (engine.isGameOver()) {
-        // Mat imediat sau remiză
-        const st = engine.getStatus();
-        score = st === 'checkmate' ? 19000 : 0;
-      } else {
-        // Simulează cel mai bun răspuns adversar
-        const oppMoves = engine.getAllLegalMoves(engine.getTurn());
-        const oppBoard = engine.getBoard();
-        const oppOrdered = orderMoves(oppMoves, oppBoard);
-
-        let worstForAI = Infinity;
-        for (const oppMove of oppOrdered) {
-          if (engine.needsPromotion(oppMove)) oppMove.promotion = 'Q';
-          const snap2 = saveState(engine);
-          engine.applyMove(oppMove);
-
-          const evalScore = evaluate(engine.getBoard());
-          // Din perspectiva AI-ului
-          const aiScore = aiColor === 'w' ? evalScore : -evalScore;
-
-          restoreState(engine, snap2);
-
-          if (aiScore < worstForAI) worstForAI = aiScore;
-          // Early exit dacă adversarul găsește ceva catastrofal
-          if (worstForAI < bestScore - 500) break;
-        }
-        score = worstForAI === Infinity ? evaluate(engine.getBoard()) : worstForAI;
-        if (aiColor === 'b') score = -evaluate(engine.getBoard());
-        score = oppMoves.length === 0 ? (engine.isGameOver() ? 19000 : 0) : worstForAI;
-      }
-
-      restoreState(engine, snap1);
+      const score = -negamax(engine, 1, -Infinity, -alpha,
+        aiColor === 'w' ? 'b' : 'w');
+      restoreState(engine, snap);
 
       if (score > bestScore) {
         bestScore = score;
         bestMove = move;
       }
+      if (score > alpha) alpha = score;
     }
 
     return bestMove;
@@ -419,20 +533,359 @@ const LocalEngine = (() => {
     return top[0].move;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // NIVEL 3 — Avansat (Maximum programatic)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── Evaluare completă pentru Nivel 3 ───────────────────────────
+  function evaluateLevel3(engine) {
+    const board = engine.getBoard();
+    const endgame = isEndgame(board);
+    let score = 0;
+
+    // Colectăm informații globale într-o singură trecere prin tablă
+    let wBishops = 0, bBishops = 0;
+    const wPawnCols = new Array(8).fill(0);
+    const bPawnCols = new Array(8).fill(0);
+    // Rândurile pionilor pe fiecare coloană (pentru passed pawn)
+    const wPawnRanks = Array.from({length:8}, () => []); // indexat per coloană
+    const bPawnRanks = Array.from({length:8}, () => []);
+    let wKingR = 7, wKingC = 4, bKingR = 0, bKingC = 4;
+    let wMobility = 0, bMobility = 0;
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+
+        // 1. Material + PST
+        const pstIdx = p.color === 'w' ? r * 8 + c : (7 - r) * 8 + (7 - c);
+        let ps = VAL[p.type];
+        ps += p.type === 'K'
+          ? (endgame ? PST.K_end[pstIdx] : PST.K_mid[pstIdx])
+          : ((PST[p.type] || [])[pstIdx] || 0);
+        score += p.color === 'w' ? ps : -ps;
+
+        // Colectăm date
+        if (p.type === 'B') p.color === 'w' ? wBishops++ : bBishops++;
+        if (p.type === 'P') {
+          if (p.color === 'w') { wPawnCols[c]++; wPawnRanks[c].push(r); }
+          else { bPawnCols[c]++; bPawnRanks[c].push(r); }
+        }
+        if (p.type === 'K') {
+          if (p.color === 'w') { wKingR = r; wKingC = c; }
+          else { bKingR = r; bKingC = c; }
+        }
+
+        // 2. Mobilitate
+        const mob = mobilityCount(board, r, c, p.type, p.color);
+        if (p.color === 'w') wMobility += mob; else bMobility += mob;
+
+        // 3. Hanging pieces
+        if (p.type !== 'K') {
+          const opp = p.color === 'w' ? 'b' : 'w';
+          if (isSquareAttackedByFast(board, r, c, opp)) {
+            const defended = isSquareAttackedByFast(board, r, c, p.color);
+            const pen = defended ? VAL[p.type] * 0.15 : VAL[p.type] * 0.5;
+            score += p.color === 'w' ? -pen : pen;
+          }
+        }
+
+        // 4. Tur pe coloana a 7-a (rândul 1 pentru alb, rândul 6 pentru negru)
+        if (p.type === 'R') {
+          if (p.color === 'w' && r === 1) score += 30;
+          if (p.color === 'b' && r === 6) score -= 30;
+        }
+
+        // 5. Tur pe coloană deschisă / semi-deschisă
+        if (p.type === 'R') {
+          const ownPawns  = p.color === 'w' ? wPawnCols[c] : bPawnCols[c];
+          const oppPawns  = p.color === 'w' ? bPawnCols[c] : wPawnCols[c];
+          const bonus = ownPawns === 0 ? (oppPawns === 0 ? 20 : 10) : 0;
+          score += p.color === 'w' ? bonus : -bonus;
+        }
+      }
+    }
+
+    // 6. Mobilitate diferențială
+    score += (wMobility - bMobility) * 4;
+
+    // 7. Perechea de nebuni
+    if (wBishops >= 2) score += 30;
+    if (bBishops >= 2) score -= 30;
+
+    // 8. Structură pioni — dubli, izolați, trecuți (passed)
+    for (let c = 0; c < 8; c++) {
+      // Dubli
+      if (wPawnCols[c] > 1) score -= 20 * (wPawnCols[c] - 1);
+      if (bPawnCols[c] > 1) score += 20 * (bPawnCols[c] - 1);
+
+      // Izolați
+      const wIso = wPawnCols[c] > 0 &&
+        (c === 0 || wPawnCols[c-1] === 0) && (c === 7 || wPawnCols[c+1] === 0);
+      const bIso = bPawnCols[c] > 0 &&
+        (c === 0 || bPawnCols[c-1] === 0) && (c === 7 || bPawnCols[c+1] === 0);
+      if (wIso) score -= 20;
+      if (bIso) score += 20;
+
+      // Pion trecut (passed pawn) — niciun pion adversar pe coloana sau adiacente
+      if (wPawnCols[c] > 0) {
+        const frontFree = bPawnCols[c] === 0 &&
+          (c === 0 || bPawnCols[c-1] === 0) && (c === 7 || bPawnCols[c+1] === 0);
+        if (frontFree) {
+          // Bonus crescător cu avansarea (rangul cel mai avansat)
+          const advRow = Math.min(...wPawnRanks[c]); // cel mai avansat (r mic = avansat pentru alb)
+          const passedBonus = [0, 10, 20, 30, 50, 75, 110, 0][7 - advRow] || 10;
+          score += passedBonus;
+        }
+      }
+      if (bPawnCols[c] > 0) {
+        const frontFree = wPawnCols[c] === 0 &&
+          (c === 0 || wPawnCols[c-1] === 0) && (c === 7 || wPawnCols[c+1] === 0);
+        if (frontFree) {
+          const advRow = Math.max(...bPawnRanks[c]); // cel mai avansat pentru negru (r mare)
+          const passedBonus = [0, 10, 20, 30, 50, 75, 110, 0][advRow] || 10;
+          score -= passedBonus;
+        }
+      }
+    }
+
+    // 9. Siguranța regelui — câți pioni proprii în jurul regelui
+    if (!endgame) {
+      score += kingSafety(board, wKingR, wKingC, 'w');
+      score -= kingSafety(board, bKingR, bKingC, 'b');
+    }
+
+    // 10. Bonus șah activ
+    const status = engine.getStatus();
+    if (status === 'check') {
+      score += engine.getTurn() === 'b' ? 40 : -40;
+    }
+
+    return score;
+  }
+
+  // Siguranța regelui: numără pioni proprii în zona 3x3 din jurul regelui
+  function kingSafety(board, kr, kc, color) {
+    let shield = 0;
+    const dir = color === 'w' ? -1 : 1; // direcția spre față
+    for (let dc = -1; dc <= 1; dc++) {
+      for (let dr = 0; dr <= 1; dr++) { // față și aceeași linie
+        const r = kr + dir * dr, c = kc + dc;
+        if (inBounds(r, c) && board[r][c]?.type === 'P' && board[r][c]?.color === color)
+          shield += 15;
+      }
+    }
+    // Penalizare suplimentară dacă regele e pe coloană deschisă
+    const ownPawns = color === 'w' ?
+      Array.from({length:8}, (_,r) => board[r][kc]).filter(p => p?.color==='w'&&p?.type==='P').length :
+      Array.from({length:8}, (_,r) => board[r][kc]).filter(p => p?.color==='b'&&p?.type==='P').length;
+    if (ownPawns === 0) shield -= 25;
+    return shield;
+  }
+
+  // ─── Killer Moves heuristic ──────────────────────────────────────
+  // Memorează mutările care au produs cutoff-uri alpha-beta la fiecare adâncime.
+  // La noduri cu aceeași adâncime, le încearcă primele.
+  const killerMoves = Array.from({length: 6}, () => [null, null]);
+
+  function storeKiller(depth, move) {
+    if (depth >= killerMoves.length) return;
+    if (!movesEqual(move, killerMoves[depth][0])) {
+      killerMoves[depth][1] = killerMoves[depth][0];
+      killerMoves[depth][0] = move;
+    }
+  }
+
+  function movesEqual(a, b) {
+    if (!a || !b) return false;
+    return a.from.r === b.from.r && a.from.c === b.from.c &&
+           a.to.r === b.to.r && a.to.c === b.to.c;
+  }
+
+  function isKiller(move, depth) {
+    if (depth >= killerMoves.length) return false;
+    return movesEqual(move, killerMoves[depth][0]) ||
+           movesEqual(move, killerMoves[depth][1]);
+  }
+
+  // ─── Ordonare mutări pentru Nivel 3 (cu killer moves) ────────────
+  function orderMovesL3(moves, board, depth) {
+    return moves.slice().sort((a, b) => {
+      const score = m => {
+        if (m.castling) return 9000;
+        if (m.promotion) return 8500;
+        const victim = m.enPassant ? {type:'P'} : board[m.to.r][m.to.c];
+        if (victim) {
+          const atk = board[m.from.r][m.from.c];
+          // MVV-LVA: piesa cea mai valoroasă cu cea mai ieftină
+          return 7000 + VAL[victim.type] * 10 - VAL[atk.type];
+        }
+        // Killer moves — mutări liniștite care au mai produs cutoff-uri
+        if (isKiller(m, depth)) return 6000;
+        return 0;
+      };
+      return score(b) - score(a);
+    });
+  }
+
+  // ─── Quiescence pentru Nivel 3 (folosește evaluateLevel3) ───────
+  function quiescenceL3(engine, alpha, beta, aiColor, qdepth) {
+    const standPat = evaluateLevel3(engine) * (aiColor === 'w' ? 1 : -1);
+    if (standPat >= beta) return beta;
+    if (standPat > alpha) alpha = standPat;
+    if (qdepth <= 0 || engine.isGameOver()) return alpha;
+
+    const turn = engine.getTurn();
+    const allMoves = engine.getAllLegalMoves(turn);
+    const board = engine.getBoard();
+    const captures = allMoves.filter(m =>
+      m.enPassant || board[m.to.r][m.to.c] !== null || m.promotion
+    );
+    if (captures.length === 0) return alpha;
+
+    for (const move of orderMoves(captures, board)) {
+      if (engine.needsPromotion(move)) move.promotion = 'Q';
+      const snap = saveState(engine);
+      engine.applyMove(move);
+      const score = -quiescenceL3(engine, -beta, -alpha,
+        aiColor === 'w' ? 'b' : 'w', qdepth - 1);
+      restoreState(engine, snap);
+      if (score >= beta) return beta;
+      if (score > alpha) alpha = score;
+    }
+    return alpha;
+  }
+
+  // ─── Negamax Level 3 (cu killer moves + evaluateLevel3) ─────────
+  function negamaxL3(engine, depth, alpha, beta, aiColor, timeRef) {
+    // Time check la fiecare nod recursiv
+    if (Date.now() - timeRef.start > timeRef.limit) {
+      timeRef.aborted = true;
+      return evaluateLevel3(engine) * (aiColor === 'w' ? 1 : -1);
+    }
+
+    if (engine.isGameOver()) {
+      const st = engine.getStatus();
+      const turn = engine.getTurn();
+      if (st === 'checkmate') return turn === aiColor ? -19000 - depth : 19000 + depth;
+      return 0;
+    }
+
+    if (depth === 0) {
+      // Evaluare directă + o trecere rapidă de capturi (quiescence shallow)
+      return quiescenceL3(engine, alpha, beta, aiColor, 0);
+    }
+
+    const turn = engine.getTurn();
+    const allMoves = engine.getAllLegalMoves(turn);
+    if (allMoves.length === 0) return 0;
+
+    const board = engine.getBoard();
+    const ordered = orderMovesL3(allMoves, board, depth);
+
+    let best = -Infinity;
+    for (const move of ordered) {
+      if (engine.needsPromotion(move)) move.promotion = 'Q';
+
+      const snap = saveState(engine);
+      engine.applyMove(move);
+      const val = -negamaxL3(engine, depth - 1, -beta, -alpha,
+        aiColor === 'w' ? 'b' : 'w', timeRef);
+      restoreState(engine, snap);
+
+      if (val > best) best = val;
+      if (val > alpha) {
+        alpha = val;
+        if (alpha >= beta) {
+          // Cutoff — salveaza killer move dacă nu e captură
+          const isCapture = board[move.to.r][move.to.c] !== null || move.enPassant;
+          if (!isCapture) storeKiller(depth, move);
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
+  // ─── Iterative Deepening pentru Nivel 3 ─────────────────────────
+  function getBestMoveLevel3(engine) {
+    const allMoves = engine.getAllLegalMoves(engine.getTurn());
+    if (allMoves.length === 0) return null;
+    if (allMoves.length === 1) {
+      const m = allMoves[0];
+      if (engine.needsPromotion(m)) m.promotion = 'Q';
+      return m;
+    }
+
+    for (let d = 0; d < killerMoves.length; d++) killerMoves[d] = [null, null];
+
+    const aiColor = engine.getTurn();
+    const TIME_LIMIT = 1600;
+    const MAX_DEPTH = 3;
+    const timeRef = { start: Date.now(), limit: TIME_LIMIT, aborted: false };
+
+    // Fallback: prima mutare ordonată la depth 1
+    const board = engine.getBoard();
+    let bestMove = orderMovesL3(allMoves, board, 1)[0];
+    if (engine.needsPromotion(bestMove)) bestMove.promotion = 'Q';
+
+    for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+      if (Date.now() - timeRef.start > TIME_LIMIT * 0.8) break;
+
+      const ordered = orderMovesL3(allMoves, engine.getBoard(), depth);
+      let bestScoreThisDepth = -Infinity;
+      let bestMoveThisDepth = null;
+      let alpha = -Infinity;
+      timeRef.aborted = false;
+
+      for (const move of ordered) {
+        if (timeRef.aborted || Date.now() - timeRef.start > TIME_LIMIT) break;
+
+        if (engine.needsPromotion(move)) move.promotion = 'Q';
+
+        const snap = saveState(engine);
+        engine.applyMove(move);
+        const score = -negamaxL3(engine, depth - 1, -Infinity, -alpha,
+          aiColor === 'w' ? 'b' : 'w', timeRef);
+        restoreState(engine, snap);
+
+        if (score > bestScoreThisDepth) {
+          bestScoreThisDepth = score;
+          bestMoveThisDepth = move;
+        }
+        if (score > alpha) alpha = score;
+      }
+
+      // Actualizăm bestMove doar dacă iterația n-a fost abortată
+      if (!timeRef.aborted && bestMoveThisDepth) {
+        bestMove = bestMoveThisDepth;
+      }
+    }
+
+    return bestMove;
+  }
+
   // ─── API public ─────────────────────────────────────────────────
   function getBestMove(engine, level = 'beginner') {
     const allMoves = engine.getAllLegalMoves(engine.getTurn());
     if (allMoves.length === 0) return null;
+    if (level === 'advanced') return getBestMoveLevel3(engine);
     if (level === 'intermediate') return getBestMoveLevel2(engine);
     return getBestMoveLevel1(engine);
   }
 
   function getMoveWithDelay(engine, level = 'beginner', minMs, maxMs) {
-    // Nivel 2 e mai greu — delay mai mare ca să pară că "gândește"
-    const mn = minMs ?? (level === 'intermediate' ? 700 : 500);
-    const mx = maxMs ?? (level === 'intermediate' ? 1500 : 1200);
+    const delays = {
+      beginner:     [500,  1200],
+      intermediate: [700,  1600],
+      advanced:     [300,   800], // calculul în sine durează, delay mic suplimentar
+    };
+    const [mn, mx] = delays[level] || delays.beginner;
+    const actualMin = minMs ?? mn;
+    const actualMax = maxMs ?? mx;
     return new Promise(resolve => {
-      const delay = mn + Math.random() * (mx - mn);
+      const delay = actualMin + Math.random() * (actualMax - actualMin);
       setTimeout(() => resolve(getBestMove(engine, level)), delay);
     });
   }

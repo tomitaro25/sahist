@@ -4,7 +4,7 @@
  * Strategia: cache-first pentru assets locale, network-first pentru API.
  */
 
-const CACHE = 'sahist-v2';
+const CACHE = 'sahist-v3';
 const ASSETS = [
   './',
   './index.html',
