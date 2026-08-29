@@ -1203,20 +1203,19 @@ function updateStatusBar() {
   if (!badge) return;
 
   if (engineLevel <= 5) {
-    // Local engine — afișat discret
     badge.textContent = `⚙ Local L${engineLevel}`;
     badge.className = 'local';
     badge.style.display = 'block';
   } else {
-    // Stockfish
     const cfg = StockfishEngine.LEVEL_MAP[engineLevel];
-    const sfState = StockfishEngine.getState();
-    if (sfState === 'ready' && stockfishReady) {
-      // Confirmă că e conectat și arată parametrii reali
-      if (cfg.limitStrength) {
+    const isReady = stockfishReady && StockfishEngine.getState() === 'ready';
+    if (isReady) {
+      if (cfg && cfg.limitStrength) {
         badge.textContent = `♟ SF18 · ${cfg.elo} ELO`;
+      } else if (cfg && cfg.depth) {
+        badge.textContent = `♟ SF18 · Depth ${cfg.depth}`;
       } else {
-        badge.textContent = `♟ SF18 · Depth ${cfg.depth || '∞'}`;
+        badge.textContent = `♟ SF18 · Conectat`;
       }
       badge.className = 'sf-ready';
     } else {
@@ -1411,19 +1410,16 @@ async function triggerAI() {
 
   try {
     if (engineLevel <= 5) {
-      // Local engine (nivele 1-5)
       move = await LocalEngine.getMoveWithDelay(ChessEngine, engineLevel);
     } else {
-      // Stockfish (nivele 6-20)
       if (!stockfishReady) {
-        // Inițializează Stockfish la prima utilizare
         await initStockfish();
+        updateStatusBar(); // actualizează badge după conectare
       }
       move = await StockfishEngine.getMoveWithDelay(ChessEngine, engineLevel);
     }
   } catch (err) {
     console.error('AI error:', err);
-    // Fallback la engine local nivel 5
     move = await LocalEngine.getMoveWithDelay(ChessEngine, 5);
   }
 
@@ -1452,6 +1448,7 @@ async function initStockfish() {
       if (state === 'ready') {
         stockfishReady = true;
         sfOverlay.classList.remove('active');
+        updateStatusBar(); // badge devine albastru imediat
       } else if (state === 'loading') {
         if (sfPct) sfPct.textContent = msg;
       } else if (state === 'error') {
@@ -1481,7 +1478,6 @@ function startNewGame() {
   promoModal.classList.remove('active');
   render();
 
-  // If AI plays white, trigger AI first
   if (playerColor === 'b') {
     setTimeout(() => triggerAI(), 600);
   }
