@@ -1,10 +1,10 @@
 {
   "stockfish": {
-    "url": "https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js",
+    "url": "./stockfish/stockfish-18-lite-single.js",
     "version": "18.0.8",
-    "note": "stockfish-18-lite-single: WASM auto-loaded from same CDN directory",
+    "note": "Fișierele .js și .wasm sunt în folderul /stockfish/ din repository. new Worker() necesită same-origin.",
     "updated": "2026-08-29"
   },
-  "app_version": "v4",
+  "app_version": "v5",
   "updated": "2026-08-29"
 }

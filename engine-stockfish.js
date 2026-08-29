@@ -13,8 +13,10 @@
 
 const StockfishEngine = (() => {
 
-  // URL-ul corect — stockfish-18-lite-single (.js încarcă automat .wasm din același director)
-  const FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js';
+  // URL same-origin — fișierele sunt în /stockfish/ din același repository GitHub
+  // Browserele blochează new Worker() cu URL-uri cross-origin (jsdelivr etc.)
+  // Soluție: fișierele .js și .wasm sunt uploadate direct în repo
+  const FALLBACK_URL = './stockfish/stockfish-18-lite-single.js';
 
   // ─── Mapare nivele 6–20 ───────────────────────────────────────────
   // limitStrength: true → UCI_LimitStrength + UCI_Elo (comportament ELO realist)
