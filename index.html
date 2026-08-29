@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-  <title>Șahist v4 Beta</title>
+  <title>Șahist v5 Beta</title>
 
   <style>
     /* ─── Tokens ─────────────────────────────────────────────── */
@@ -203,6 +203,22 @@
     #status-text.check { color: #e74c3c; font-weight: 700; font-style: normal; }
     #status-text.checkmate { color: var(--gold); font-weight: 700; font-style: normal; }
     #status-text.stalemate { color: var(--text-dim); }
+
+    /* ─── Engine badge ────────────────────────────────────────── */
+    #engine-badge {
+      font-size: 0.62rem;
+      padding: 2px 6px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      background: var(--surface2);
+      white-space: nowrap;
+      display: none; /* ascuns când nu e relevant */
+      letter-spacing: 0.02em;
+    }
+    #engine-badge.local  { color: #27ae60; border-color: #27ae60; }
+    #engine-badge.sf-connecting { color: var(--gold-dim); border-color: var(--gold-dim); animation: pulse 1s infinite alternate; }
+    #engine-badge.sf-ready { color: #2980b9; border-color: #2980b9; }
     #turn-indicator {
       display: flex; align-items: center; gap: 6px;
       font-size: 0.78rem;
@@ -649,7 +665,7 @@
 
 <!-- ─── Topbar ──────────────────────────────────────────────────── -->
 <header id="topbar">
-  <div class="logo">♟ Șahist <span>v4 Beta</span></div>
+  <div class="logo">♟ Șahist <span>v5 Beta</span></div>
   <div id="topbar-actions">
     <div id="thinking-dot" title="Calculatorul gândește..."></div>
     <button class="icon-btn" id="btn-settings" title="Setări" aria-label="Setări">⚙</button>
@@ -697,9 +713,12 @@
     <!-- Status Bar -->
     <div id="status-bar">
       <div id="status-text">Pregătit de joc</div>
-      <div id="turn-indicator">
-        <div id="turn-pip" class="white"></div>
-        <span id="turn-label">Alb</span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div id="engine-badge" title="Engine activ"></div>
+        <div id="turn-indicator">
+          <div id="turn-pip" class="white"></div>
+          <span id="turn-label">Alb</span>
+        </div>
       </div>
     </div>
 
@@ -1178,6 +1197,34 @@ function updateStatusBar() {
   if (status === 'check') statusText.classList.add('check');
   if (status === 'checkmate' || status === 'stalemate') statusText.classList.add('checkmate');
   if (aiThinking) statusText.textContent = 'Calculatorul gândește…';
+
+  // ─── Engine badge ──────────────────────────────────────────────
+  const badge = document.getElementById('engine-badge');
+  if (!badge) return;
+
+  if (engineLevel <= 5) {
+    // Local engine — afișat discret
+    badge.textContent = `⚙ Local L${engineLevel}`;
+    badge.className = 'local';
+    badge.style.display = 'block';
+  } else {
+    // Stockfish
+    const cfg = StockfishEngine.LEVEL_MAP[engineLevel];
+    const sfState = StockfishEngine.getState();
+    if (sfState === 'ready' && stockfishReady) {
+      // Confirmă că e conectat și arată parametrii reali
+      if (cfg.limitStrength) {
+        badge.textContent = `♟ SF18 · ${cfg.elo} ELO`;
+      } else {
+        badge.textContent = `♟ SF18 · Depth ${cfg.depth || '∞'}`;
+      }
+      badge.className = 'sf-ready';
+    } else {
+      badge.textContent = '♟ SF18 · se conectează…';
+      badge.className = 'sf-connecting';
+    }
+    badge.style.display = 'block';
+  }
 }
 
 // ─── Captured Pieces ───────────────────────────────────────────────
@@ -1394,28 +1441,32 @@ async function triggerAI() {
 
 // ─── Inițializare Stockfish ────────────────────────────────────────
 async function initStockfish() {
-  const sfOverlay  = document.getElementById('sf-loading-overlay');
-  const sfBar      = document.getElementById('sf-progress-bar');
-  const sfPct      = document.getElementById('sf-progress-pct');
+  const sfOverlay = document.getElementById('sf-loading-overlay');
+  const sfPct     = document.getElementById('sf-progress-pct');
 
   sfOverlay.classList.add('active');
+  if (sfPct) sfPct.textContent = 'Se conectează...';
 
-  await StockfishEngine.init(
-    (state, msg) => {
+  try {
+    await StockfishEngine.init((state, msg) => {
       if (state === 'ready') {
         stockfishReady = true;
         sfOverlay.classList.remove('active');
+      } else if (state === 'loading') {
+        if (sfPct) sfPct.textContent = msg;
       } else if (state === 'error') {
         sfOverlay.classList.remove('active');
         stockfishReady = false;
+        console.error('Stockfish init error:', msg);
       }
-    },
-    (progress) => {
-      const pct = Math.round(progress * 100);
-      sfBar.style.width = pct + '%';
-      sfPct.textContent = pct + '%';
-    }
-  );
+    });
+    stockfishReady = true;
+    sfOverlay.classList.remove('active');
+  } catch (err) {
+    sfOverlay.classList.remove('active');
+    stockfishReady = false;
+    throw err;
+  }
 }
 
 // ─── New Game ──────────────────────────────────────────────────────
@@ -1588,7 +1639,7 @@ document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
 <!-- ─── Version check + Service Worker Registration ──────────────── -->
 <script>
 (function() {
-  const APP_VERSION = 'sahist-v4';
+  const APP_VERSION = 'sahist-v5';
 
   // ── Mecanism de update care funcționează atât pe file:// cât și pe HTTP ──
 

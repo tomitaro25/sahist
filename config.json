@@ -1,11 +1,10 @@
 {
   "stockfish": {
-    "url": "https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-nnue-16-single.js",
-    "version": "18",
-    "size_mb": 6.5,
-    "updated": "2026-08-28",
-    "note": "Stockfish 18 lite single-thread - no CORS headers required"
+    "url": "https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js",
+    "version": "18.0.8",
+    "note": "stockfish-18-lite-single: WASM auto-loaded from same CDN directory",
+    "updated": "2026-08-29"
   },
   "app_version": "v4",
-  "updated": "2026-08-28"
+  "updated": "2026-08-29"
 }

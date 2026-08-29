@@ -1,281 +1,207 @@
 /**
- * Șahist — Stockfish Engine Wrapper
+ * Șahist — Stockfish Engine Wrapper v3
  *
- * Gestionează descărcarea, stocarea (IndexedDB) și comunicarea
- * cu Stockfish via UCI protocol într-un Web Worker.
- *
- * Mapare nivele 6–20:
- *   6–10  → Intermediar  (Skill 3–11)
- *   11–14 → Avansat      (Skill 12–15)
- *   15–17 → Expert       (Skill 16–18)
- *   18–20 → Maestru      (Skill 19–20)
+ * Abordare corectă pentru Web Worker + WASM:
+ * - Worker creat direct din URL CDN (nu din Blob)
+ * - .wasm rezolvat corect relativ la .js pe CDN
+ * - Fișierele corecte: stockfish-18-lite-single.js + .wasm
+ * - UCI protocol cu confirmare isready după setoption
+ * - Nivel 20: go depth 18 (putere maximă)
  */
 
 'use strict';
 
 const StockfishEngine = (() => {
 
-  // ─── Config ──────────────────────────────────────────────────────
-  // URL-ul e citit din config.json (GitHub); fallback la hardcodat.
-  const FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-nnue-16-single.js';
-  const DB_NAME      = 'sahist_stockfish';
-  const DB_VERSION   = 1;
-  const STORE_NAME   = 'engine_files';
-  const FILE_KEY     = 'stockfish-lite';
+  // URL-ul corect — stockfish-18-lite-single (.js încarcă automat .wasm din același director)
+  const FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/stockfish@18.0.8/src/stockfish-18-lite-single.js';
 
-  // Mapare nivel (6–20) → Skill Level Stockfish (0–20) + movetime (ms)
+  // ─── Mapare nivele 6–20 ───────────────────────────────────────────
+  // limitStrength: true → UCI_LimitStrength + UCI_Elo (comportament ELO realist)
+  // limitStrength: false → Skill Level pur (putere algoritmică directă)
+  // depth: în loc de movetime pentru nivel 20 (putere maximă)
   const LEVEL_MAP = {
-     6: { skill:  3, movetime:  500 },
-     7: { skill:  5, movetime:  600 },
-     8: { skill:  7, movetime:  700 },
-     9: { skill:  9, movetime:  800 },
-    10: { skill: 11, movetime:  900 },
-    11: { skill: 12, movetime: 1000 },
-    12: { skill: 13, movetime: 1100 },
-    13: { skill: 14, movetime: 1200 },
-    14: { skill: 15, movetime: 1400 },
-    15: { skill: 16, movetime: 1500 },
-    16: { skill: 17, movetime: 1700 },
-    17: { skill: 18, movetime: 2000 },
-    18: { skill: 19, movetime: 2200 },
-    19: { skill: 20, movetime: 2500 },
-    20: { skill: 20, movetime: 3000 },
+     6: { skill: 20, elo:  800, movetime:  600, limitStrength: true  },
+     7: { skill: 20, elo: 1000, movetime:  700, limitStrength: true  },
+     8: { skill: 20, elo: 1150, movetime:  800, limitStrength: true  },
+     9: { skill: 20, elo: 1300, movetime:  900, limitStrength: true  },
+    10: { skill: 20, elo: 1450, movetime: 1000, limitStrength: true  },
+    11: { skill: 20, elo: 1600, movetime: 1200, limitStrength: true  },
+    12: { skill: 20, elo: 1700, movetime: 1400, limitStrength: true  },
+    13: { skill: 20, elo: 1850, movetime: 1600, limitStrength: true  },
+    14: { skill: 20, elo: 2000, movetime: 2000, limitStrength: true  },
+    15: { skill: 20, elo: 2100, movetime: 2000, limitStrength: true  },
+    16: { skill: 20, elo: 2200, movetime: 2500, limitStrength: true  },
+    17: { skill: 20, elo: 2400, movetime: 3000, limitStrength: true  },
+    18: { skill: 20, elo: 2600, movetime: 4000, limitStrength: true  },
+    19: { skill: 20, elo: 2800, movetime: 5000, limitStrength: true  },
+    20: { skill: 20, elo: 3600, depth:      18, limitStrength: false },
   };
 
   // ─── Stare internă ────────────────────────────────────────────────
   let worker       = null;
-  let workerState  = 'idle'; // idle | loading | ready | thinking
-  let currentSkill = -1;
+  let workerReady  = false;
+  let resolveReady = null;
   let resolveMove  = null;
-  let onStatusChange = null; // callback(state, message)
+  let currentCfgKey = '';
+  let onStatusChange = null;
 
-  // ─── IndexedDB ────────────────────────────────────────────────────
-  function openDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = e => {
-        e.target.result.createObjectStore(STORE_NAME);
-      };
-      req.onsuccess = e => resolve(e.target.result);
-      req.onerror   = e => reject(e.target.error);
-    });
+  // ─── Creare worker din URL ────────────────────────────────────────
+  // Worker direct din URL CDN — .wasm e rezolvat corect relativ la .js
+  function createWorkerFromURL(url) {
+    return new Worker(url);
   }
 
-  async function loadFromDB() {
-    try {
-      const db = await openDB();
-      return new Promise((resolve, reject) => {
-        const tx  = db.transaction(STORE_NAME, 'readonly');
-        const req = tx.objectStore(STORE_NAME).get(FILE_KEY);
-        req.onsuccess = e => resolve(e.target.result || null);
-        req.onerror   = e => reject(e.target.error);
-      });
-    } catch { return null; }
-  }
-
-  async function saveToDB(blob) {
-    try {
-      const db = await openDB();
-      return new Promise((resolve, reject) => {
-        const tx  = db.transaction(STORE_NAME, 'readwrite');
-        const req = tx.objectStore(STORE_NAME).put(blob, FILE_KEY);
-        req.onsuccess = () => resolve(true);
-        req.onerror   = e => reject(e.target.error);
-      });
-    } catch { return false; }
-  }
-
-  // ─── URL Resolution ───────────────────────────────────────────────
-  async function resolveStockfishURL() {
-    // 1. URL din localStorage (setat de config.json fetch la pornire)
-    const stored = localStorage.getItem('sahist_stockfish_url');
-    if (stored) return stored;
-    // 2. Fallback hardcodat
-    return FALLBACK_URL;
-  }
-
-  // ─── Download cu progress ─────────────────────────────────────────
-  async function downloadStockfish(url, onProgress) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-
-    const total  = parseInt(response.headers.get('content-length') || '0');
-    const reader = response.body.getReader();
-    const chunks = [];
-    let received = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.length;
-      if (onProgress && total) onProgress(received / total);
-    }
-
-    return new Blob(chunks, { type: 'application/javascript' });
-  }
-
-  // ─── Worker Lifecycle ─────────────────────────────────────────────
-  function createWorkerFromBlob(blob) {
-    const url = URL.createObjectURL(blob);
-    const w   = new Worker(url);
-    URL.revokeObjectURL(url); // liberat după creare
-    return w;
-  }
-
-  function setupWorkerMessages(w) {
+  // ─── Mesaje worker ────────────────────────────────────────────────
+  function setupWorker(w) {
     w.onmessage = e => {
-      const msg = typeof e.data === 'string' ? e.data : '';
+      const msg = typeof e.data === 'string' ? e.data
+                : (e.data?.data || '');
+
+      if (msg.startsWith('Stockfish') || msg === '') return; // mesaje de info
 
       if (msg === 'uciok') {
-        // UCI handshake complet — trimite isready
         w.postMessage('isready');
         return;
       }
 
       if (msg === 'readyok') {
-        workerState = 'ready';
-        if (onStatusChange) onStatusChange('ready', '');
+        if (!workerReady) {
+          workerReady = true;
+          if (onStatusChange) onStatusChange('ready', '');
+        }
+        if (resolveReady) { resolveReady(); resolveReady = null; }
         return;
       }
 
       if (msg.startsWith('bestmove') && resolveMove) {
-        const parts = msg.split(' ');
-        const uci   = parts[1]; // ex: "e2e4", "e1g1", "e7e8q"
-        workerState = 'ready';
-        const cb = resolveMove;
+        const uci = msg.split(' ')[1];
+        const cb  = resolveMove;
         resolveMove = null;
         cb(uciToMove(uci));
       }
     };
 
     w.onerror = err => {
-      console.error('Stockfish worker error:', err);
-      workerState = 'idle';
-      if (resolveMove) { resolveMove(null); resolveMove = null; }
-      if (onStatusChange) onStatusChange('error', err.message);
+      console.error('Stockfish worker error:', err.message || err);
+      workerReady = false;
+      if (resolveMove)  { resolveMove(null);  resolveMove = null;  }
+      if (resolveReady) { resolveReady();      resolveReady = null; }
+      if (onStatusChange) onStatusChange('error', String(err.message || err));
     };
   }
 
-  // ─── Conversie UCI ↔ intern ───────────────────────────────────────
+  // ─── Așteaptă readyok ────────────────────────────────────────────
+  function waitReady(timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        resolveReady = null;
+        reject(new Error('Stockfish readyok timeout'));
+      }, timeoutMs);
+      resolveReady = () => { clearTimeout(timer); resolve(); };
+    });
+  }
+
+  // ─── Conversie UCI → move ─────────────────────────────────────────
   function uciToMove(uci) {
     if (!uci || uci === '(none)') return null;
-    // Format: "e2e4" sau "e7e8q" (promovare)
-    const fc = uci.charCodeAt(0) - 97; // 'a'=0
+    const fc = uci.charCodeAt(0) - 97;
     const fr = 8 - parseInt(uci[1]);
     const tc = uci.charCodeAt(2) - 97;
     const tr = 8 - parseInt(uci[3]);
     const promotion = uci.length >= 5 ? uci[4].toUpperCase() : null;
-    return { from: {r:fr, c:fc}, to: {r:tr, c:tc}, promotion };
+    return { from:{r:fr, c:fc}, to:{r:tr, c:tc}, promotion };
   }
 
-  function fenFromEngine(engine) {
-    return engine.getFEN();
+  // ─── URL resolution ───────────────────────────────────────────────
+  function getStockfishURL() {
+    return localStorage.getItem('sahist_stockfish_url') || FALLBACK_URL;
   }
 
-  // ─── Setare nivel Stockfish ────────────────────────────────────────
-  function applySkillLevel(w, skill) {
-    w.postMessage(`setoption name Skill Level value ${skill}`);
-    // Erori la mutări slabe — simulează greșeli umane la nivele joase
-    if (skill < 10) {
-      const errProb  = Math.round(100 - skill * 8);
-      const maxErr   = Math.round(300 - skill * 25);
-      w.postMessage(`setoption name UCI_LimitStrength value true`);
-      w.postMessage(`setoption name UCI_Elo value ${400 + skill * 80}`);
-    } else {
-      w.postMessage(`setoption name UCI_LimitStrength value false`);
+  // ─── Aplică nivel cu confirmare ────────────────────────────────────
+  async function applyLevel(cfg) {
+    // Resetează LimitStrength mai întâi
+    worker.postMessage('setoption name UCI_LimitStrength value false');
+
+    if (cfg.limitStrength) {
+      worker.postMessage(`setoption name UCI_Elo value ${cfg.elo}`);
+      worker.postMessage(`setoption name UCI_LimitStrength value true`);
     }
-    currentSkill = skill;
+    worker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
+
+    // Confirmare că opțiunile sunt aplicate
+    worker.postMessage('isready');
+    await waitReady(5000);
   }
 
-  // ─── Inițializare publică ─────────────────────────────────────────
-  async function init(statusCallback, progressCallback) {
-    if (worker && workerState !== 'idle') return; // deja inițializat
+  // ─── Init public ──────────────────────────────────────────────────
+  async function init(statusCallback) {
+    if (worker && workerReady) return;
 
     onStatusChange = statusCallback;
-    workerState = 'loading';
-    if (onStatusChange) onStatusChange('loading', 'Caut motorul în cache...');
+    if (onStatusChange) onStatusChange('loading', 'Se inițializează Stockfish...');
 
     try {
-      // 1. Încearcă din IndexedDB
-      let blob = await loadFromDB();
+      const url = getStockfishURL();
+      worker = createWorkerFromURL(url);
+      setupWorker(worker);
 
-      if (!blob) {
-        // 2. Descarcă
-        const url = await resolveStockfishURL();
-        if (onStatusChange) onStatusChange('loading', 'Se descarcă motorul Stockfish (~6MB)...');
-        blob = await downloadStockfish(url, progressCallback);
-        // Salvează pentru offline
-        await saveToDB(blob);
-        if (onStatusChange) onStatusChange('loading', 'Motor salvat. Se inițializează...');
-      } else {
-        if (onStatusChange) onStatusChange('loading', 'Se inițializează motorul...');
-      }
-
-      // 3. Creează worker și pornește UCI handshake
-      worker = createWorkerFromBlob(blob);
-      setupWorkerMessages(worker);
+      // UCI handshake
       worker.postMessage('uci');
 
+      // Așteptăm readyok inițial
+      await waitReady(20000);
+
+      if (onStatusChange) onStatusChange('ready', '');
+
     } catch (err) {
-      workerState = 'idle';
-      if (onStatusChange) onStatusChange('error', `Eroare: ${err.message}`);
+      if (worker) { worker.terminate(); worker = null; }
+      workerReady = false;
+      if (onStatusChange) onStatusChange('error', err.message);
       throw err;
     }
   }
 
-  // ─── Obține mutarea ────────────────────────────────────────────────
-  function getMove(engine, level) {
-    return new Promise((resolve, reject) => {
-      if (!worker || workerState !== 'ready') {
-        reject(new Error('Stockfish not ready'));
-        return;
-      }
+  // ─── getMove ──────────────────────────────────────────────────────
+  async function getMove(engine, level) {
+    if (!worker || !workerReady) throw new Error('Stockfish not ready');
 
-      const cfg      = LEVEL_MAP[level] || LEVEL_MAP[10];
-      const { skill, movetime } = cfg;
-      const fen      = fenFromEngine(engine);
+    const cfg    = LEVEL_MAP[level] || LEVEL_MAP[20];
+    const cfgKey = `${level}_${cfg.elo}_${cfg.limitStrength}`;
+    const fen    = engine.getFEN();
 
-      // Actualizează skill dacă s-a schimbat
-      if (skill !== currentSkill) applySkillLevel(worker, skill);
+    // Aplică configurația dacă s-a schimbat nivelul
+    if (cfgKey !== currentCfgKey) {
+      await applyLevel(cfg);
+      currentCfgKey = cfgKey;
+    }
 
-      workerState = 'thinking';
+    return new Promise((resolve) => {
       resolveMove = resolve;
-
       worker.postMessage(`position fen ${fen}`);
-      worker.postMessage(`go movetime ${movetime}`);
+      if (cfg.depth) {
+        worker.postMessage(`go depth ${cfg.depth}`);
+      } else {
+        worker.postMessage(`go movetime ${cfg.movetime}`);
+      }
     });
   }
 
-  // ─── getMoveWithDelay (interfața comună cu engine-local) ──────────
-  function getMoveWithDelay(engine, level) {
-    // Delay mic suplimentar față de movetime (UX natural)
-    const extraDelay = 100 + Math.random() * 200;
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const move = await getMove(engine, level);
-          resolve(move);
-        } catch (err) {
-          reject(err);
-        }
-      }, extraDelay);
-    });
+  async function getMoveWithDelay(engine, level) {
+    return getMove(engine, level);
   }
 
-  // ─── Verifică dacă e disponibil (fișier în cache) ─────────────────
-  async function isAvailable() {
-    const blob = await loadFromDB();
-    return blob !== null;
+  function getState() {
+    return workerReady ? 'ready' : 'idle';
   }
-
-  function getState() { return workerState; }
 
   function destroy() {
     if (worker) { worker.terminate(); worker = null; }
-    workerState = 'idle';
-    resolveMove = null;
+    workerReady   = false;
+    resolveMove   = null;
+    resolveReady  = null;
+    currentCfgKey = '';
   }
 
-  return { init, getMove, getMoveWithDelay, isAvailable, getState, destroy, LEVEL_MAP };
+  return { init, getMove, getMoveWithDelay, getState, destroy, LEVEL_MAP };
 })();
