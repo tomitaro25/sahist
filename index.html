@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-  <title>Șahist v5 Beta</title>
+  <title>Șahist v6 Beta</title>
 
   <style>
     /* ─── Tokens ─────────────────────────────────────────────── */
@@ -656,6 +656,252 @@
       #move-history-list { max-height: 160px; }
     }
 
+    /* ─── Tab navigație ──────────────────────────────────────── */
+    #app-tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .app-tab {
+      padding: 10px 18px;
+      font-size: 0.82rem;
+      font-family: inherit;
+      color: var(--text-dim);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color var(--transition), border-color var(--transition);
+      letter-spacing: 0.03em;
+    }
+    .app-tab:hover { color: var(--text); }
+    .app-tab.active {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+      font-weight: 700;
+    }
+
+    /* ─── Lecții panel ───────────────────────────────────────── */
+    #lessons-view {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      max-width: 860px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    #lessons-view.active { display: block; }
+
+    /* Meniu categorii */
+    #lessons-panel {}
+    .lesson-category { margin-bottom: 24px; }
+    .lesson-cat-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .lesson-cat-icon { font-size: 1.2rem; }
+    .lesson-cat-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+    .lesson-modules {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 10px;
+    }
+    .lesson-module {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+    }
+    .lesson-module:hover:not(.coming-soon) {
+      border-color: var(--gold-dim);
+      background: var(--surface2);
+    }
+    .lesson-module.done { border-color: #27ae60; }
+    .lesson-module.coming-soon { opacity: 0.5; cursor: default; }
+    .lesson-mod-title {
+      font-size: 0.9rem;
+      color: var(--text);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .lesson-module.done .lesson-mod-title { color: #27ae60; }
+    .lesson-mod-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .lesson-mod-progress {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .lesson-prog-bar {
+      height: 100%;
+      background: var(--gold);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    .soon-badge {
+      font-size: 0.6rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 1px 6px;
+      color: var(--text-muted);
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    /* Detaliu modul */
+    #lesson-detail-panel { display: none; }
+    .back-btn {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 16px;
+      font-family: inherit;
+    }
+    .back-btn:hover { color: var(--gold); }
+    .module-header { margin-bottom: 8px; }
+    .module-title {
+      font-size: 1.2rem;
+      color: var(--text);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .module-subtitle {
+      font-size: 0.78rem;
+      color: var(--gold);
+      font-style: italic;
+    }
+    .module-description {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin: 12px 0 20px;
+      padding: 12px 14px;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .examples-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .examples-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .example-btn {
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color var(--transition), background var(--transition);
+    }
+    .example-btn:hover { border-color: var(--gold-dim); background: var(--surface2); }
+    .example-btn.done { color: #27ae60; border-color: #27ae60; }
+
+    /* ─── Step panel (pe tablă) ──────────────────────────────── */
+    #lesson-step-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 8px;
+    }
+    #step-indicator {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .step-instruction {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      line-height: 1.4;
+      min-height: 1.4em;
+    }
+    .step-instruction.user-turn { color: var(--gold); }
+    .step-instruction.auto-turn { color: var(--text-dim); font-style: italic; font-weight: 400; }
+    #step-explanation {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+      min-height: 2.5em;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 8px;
+    }
+    #move-error-msg {
+      display: none;
+      font-size: 0.75rem;
+      color: #e74c3c;
+      padding: 4px 0;
+      animation: shake 0.3s ease;
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    #lesson-finish-btns {
+      display: none;
+      gap: 8px;
+      margin-top: 12px;
+      flex-direction: column;
+    }
+    .lesson-action-btn {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-dim);
+      text-align: left;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .lesson-action-btn:hover { border-color: var(--gold-dim); color: var(--text); }
+    .lesson-action-btn.primary {
+      background: var(--gold);
+      color: #1a1610;
+      border-color: transparent;
+      font-weight: 700;
+    }
+    .lesson-action-btn.primary:hover { background: #dab94e; }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { transition: none !important; animation: none !important; }
     }
@@ -665,14 +911,20 @@
 
 <!-- ─── Topbar ──────────────────────────────────────────────────── -->
 <header id="topbar">
-  <div class="logo">♟ Șahist <span>v5 Beta</span></div>
+  <div class="logo">♟ Șahist <span>v6 Beta</span></div>
   <div id="topbar-actions">
     <div id="thinking-dot" title="Calculatorul gândește..."></div>
     <button class="icon-btn" id="btn-settings" title="Setări" aria-label="Setări">⚙</button>
   </div>
 </header>
 
-<!-- ─── Main ────────────────────────────────────────────────────── -->
+<!-- ─── Tab navigație ────────────────────────────────────────────── -->
+<div id="app-tabs">
+  <button class="app-tab active" id="tab-play">♟ Joacă</button>
+  <button class="app-tab" id="tab-learn">📖 Învață</button>
+</div>
+
+<!-- ─── Main (joc) ───────────────────────────────────────────────── -->
 <main id="main">
 
   <!-- Board Column -->
@@ -719,6 +971,19 @@
           <div id="turn-pip" class="white"></div>
           <span id="turn-label">Alb</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Lesson step panel (vizibil doar în modul lecție) -->
+    <div id="lesson-step-panel">
+      <div id="step-indicator"></div>
+      <div id="step-instruction" class="step-instruction"></div>
+      <div id="move-error-msg">✗ Aceasta nu e mutarea corectă. Încearcă din nou!</div>
+      <div id="step-explanation"></div>
+      <div id="lesson-finish-btns">
+        <button class="lesson-action-btn primary" id="btn-lesson-next-example">→ Exemplul următor</button>
+        <button class="lesson-action-btn" id="btn-lesson-free-play">♟ Exersează liber de la această poziție</button>
+        <button class="lesson-action-btn" id="btn-lesson-exit">✕ Ieși din lecție</button>
       </div>
     </div>
 
@@ -769,6 +1034,14 @@
   </aside>
 
 </main><!-- /main -->
+
+<!-- ─── Lecții View ───────────────────────────────────────────────── -->
+<div id="lessons-view">
+  <!-- Meniu module -->
+  <div id="lessons-panel"></div>
+  <!-- Detaliu modul + exemple -->
+  <div id="lesson-detail-panel"></div>
+</div>
 
 <!-- ─── Settings Overlay ─────────────────────────────────────────── -->
 <div id="overlay" role="dialog" aria-modal="true">
@@ -857,6 +1130,8 @@
 <script src="engine-local.js"></script>
 <script src="engine-stockfish.js"></script>
 <script src="storage.js"></script>
+<script src="lessons-data.js"></script>
+<script src="lessons-ui.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════════
    Șahist — UI Controller
@@ -1328,13 +1603,34 @@ function checkGameOver() {
 // ─── Square Click Handler ──────────────────────────────────────────
 function onSquareClick(r, c) {
   if (aiThinking || ChessEngine.isGameOver() || pendingPromotion) return;
-  if (ChessEngine.getTurn() !== playerColor) return;
 
   const board = ChessEngine.getBoard();
   const piece = board[r][c];
 
-  // Dacă avem o piesă selectată, verificăm ÎNTÂI dacă pătratul e o mutare legală
-  // (inclusiv rocada, unde destinația poate fi ocupată de tura proprie)
+  // ─── Mod lecție ghidată ────────────────────────────────────────
+  if (LessonsUI.isLessonActive()) {
+    // Dacă avem o piesă selectată și userul apasă o destinație
+    if (selectedSquare && !(piece && piece.color === playerColor)) {
+      // Încearcă mutarea prin lecție
+      const consumed = LessonsUI.handleUserMove(selectedSquare, {r, c});
+      if (consumed) {
+        selectedSquare = null;
+        return;
+      }
+    }
+    // Selectează sau re-selectează o piesă proprie
+    if (piece && piece.color === playerColor) {
+      selectedSquare = {r, c};
+      render(); // re-render pentru a arăta piesa selectată
+    } else {
+      selectedSquare = null;
+    }
+    return;
+  }
+
+  // ─── Mod joc normal ───────────────────────────────────────────
+  if (ChessEngine.getTurn() !== playerColor) return;
+
   if (selectedSquare) {
     const targetMove = legalMovesForSelected.find(m => m.to.r === r && m.to.c === c);
     if (targetMove) {
@@ -1343,7 +1639,6 @@ function onSquareClick(r, c) {
     }
   }
 
-  // Selectează o piesă proprie (sau re-selectează alta)
   if (piece && piece.color === playerColor) {
     selectedSquare = { r, c };
     legalMovesForSelected = ChessEngine.getLegalMoves(r, c);
@@ -1351,7 +1646,6 @@ function onSquareClick(r, c) {
     return;
   }
 
-  // Click pe gol sau piesă adversă fără selecție → deselectează
   selectedSquare = null;
   legalMovesForSelected = [];
   render();
@@ -1584,7 +1878,187 @@ function applySettingsAndStart() {
   startNewGame();
 }
 
-// ─── Event Bindings ────────────────────────────────────────────────
+// ─── Tab switching ─────────────────────────────────────────────────
+const tabPlay    = document.getElementById('tab-play');
+const tabLearn   = document.getElementById('tab-learn');
+const mainView   = document.getElementById('main');
+const lessonsView = document.getElementById('lessons-view');
+
+function switchTab(tab) {
+  tabPlay.classList.toggle('active', tab === 'play');
+  tabLearn.classList.toggle('active', tab === 'learn');
+  mainView.style.display    = tab === 'play'  ? '' : 'none';
+  lessonsView.classList.toggle('active', tab === 'learn');
+}
+
+tabPlay.addEventListener('click',  () => switchTab('play'));
+tabLearn.addEventListener('click', () => {
+  switchTab('learn');
+  LessonsUI.init(lessonCallbacks);
+});
+
+// ─── Highlight lecție pe SVG ───────────────────────────────────────
+let lessonHighlights = [];
+
+function drawLessonHighlights(fromRC, toRC) {
+  clearLessonHighlights();
+  // From — galben
+  const f = rcToXY(fromRC.r, fromRC.c);
+  const rFrom = svgEl('rect', {
+    x: f.x, y: f.y, width: SQ, height: SQ,
+    fill: 'rgba(255,200,0,0.55)',
+    'pointer-events': 'none'
+  });
+  hlGroup.appendChild(rFrom);
+  lessonHighlights.push(rFrom);
+
+  // To — verde
+  const t = rcToXY(toRC.r, toRC.c);
+  const rTo = svgEl('rect', {
+    x: t.x, y: t.y, width: SQ, height: SQ,
+    fill: 'rgba(80,200,80,0.55)',
+    'pointer-events': 'none'
+  });
+  hlGroup.appendChild(rTo);
+  lessonHighlights.push(rTo);
+
+  // Săgeată de la from la to
+  const fx = f.x + SQ/2, fy = f.y + SQ/2;
+  const tx = t.x + SQ/2, ty = t.y + SQ/2;
+  // Scurtăm puțin săgeata la capete
+  const dx = tx - fx, dy = ty - fy;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  const nx = dx/len, ny = dy/len;
+  const sx = fx + nx*SQ*0.3, sy = fy + ny*SQ*0.3;
+  const ex = tx - nx*SQ*0.35, ey = ty - ny*SQ*0.35;
+
+  const arrow = svgEl('line', {
+    x1: sx, y1: sy, x2: ex, y2: ey,
+    stroke: 'rgba(255,180,0,0.9)',
+    'stroke-width': '5',
+    'stroke-linecap': 'round',
+    'marker-end': 'url(#lesson-arrow-head)',
+    'pointer-events': 'none'
+  });
+  hlGroup.appendChild(arrow);
+  lessonHighlights.push(arrow);
+}
+
+function clearLessonHighlights() {
+  lessonHighlights.forEach(el => el.remove());
+  lessonHighlights = [];
+}
+
+// Adăugăm marker săgeată în SVG defs
+(function addArrowMarker() {
+  const defs = document.querySelector('#board-svg defs');
+  defs.innerHTML = `<marker id="lesson-arrow-head" markerWidth="6" markerHeight="6"
+    refX="5" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L6,3 z" fill="rgba(255,180,0,0.9)"/>
+  </marker>`;
+})();
+
+// ─── Lesson Callbacks ──────────────────────────────────────────────
+const lessonCallbacks = {
+  initPosition(fen, pColor) {
+    // Oprește orice joc activ
+    aiThinking = false;
+    thinkingDot.classList.remove('active');
+    gameoverBanner.classList.remove('active');
+    pendingPromotion = null;
+    selectedSquare = null;
+    legalMovesForSelected = [];
+
+    // Setează culorile
+    playerColor = pColor;
+    aiColor = pColor === 'w' ? 'b' : 'w';
+    flipped = (pColor === 'b');
+
+    // Încarcă poziția
+    ChessEngine.init(fen);
+    drawBoard();
+    render();
+  },
+
+  applyLessonMove(fromRC, toRC, promotion) {
+    const board = ChessEngine.getBoard();
+    const allMoves = ChessEngine.getAllLegalMoves(ChessEngine.getTurn());
+    const move = allMoves.find(m =>
+      m.from.r === fromRC.r && m.from.c === fromRC.c &&
+      m.to.r   === toRC.r   && m.to.c   === toRC.c
+    );
+    if (!move) return;
+    if (promotion || ChessEngine.needsPromotion(move)) move.promotion = promotion || 'Q';
+    ChessEngine.applyMove(move);
+    selectedSquare = null;
+    legalMovesForSelected = [];
+    clearLessonHighlights();
+    render();
+  },
+
+  highlightLessonSquares(fromRC, toRC) {
+    selectedSquare = null;
+    legalMovesForSelected = [];
+    drawLessonHighlights(fromRC, toRC);
+  },
+
+  clearLessonHighlights() {
+    clearLessonHighlights();
+  },
+
+  showMoveError() {
+    const errEl = document.getElementById('move-error-msg');
+    if (!errEl) return;
+    errEl.style.display = 'block';
+    setTimeout(() => { errEl.style.display = 'none'; }, 2000);
+    // Shake board
+    document.getElementById('board-svg').style.animation = 'none';
+    requestAnimationFrame(() => {
+      document.getElementById('board-svg').style.animation = '';
+    });
+  },
+
+  startFreePlay(fen, pColor) {
+    // Revenim la tab-ul de joc în modul liber
+    switchTab('play');
+    playerColor = pColor;
+    aiColor = pColor === 'w' ? 'b' : 'w';
+    flipped = (pColor === 'b');
+    engineLevel = Storage.getSettings().engineLevel || 5;
+    ChessEngine.init(fen);
+    drawBoard();
+    render();
+    // Dacă e rândul AI-ului, declanșăm
+    if (ChessEngine.getTurn() === aiColor && !ChessEngine.isGameOver()) {
+      setTimeout(() => triggerAI(), 800);
+    }
+  },
+
+  exitLessons() {
+    document.getElementById('lesson-step-panel').style.display = 'none';
+    document.getElementById('lesson-finish-btns').style.display = 'none';
+    clearLessonHighlights();
+    switchTab('play');
+  }
+};
+
+// ─── Lesson finish buttons ─────────────────────────────────────────
+document.getElementById('btn-lesson-next-example')?.addEventListener('click', () => {
+  // Găsește exemplul următor în modulul curent
+  document.getElementById('lesson-finish-btns').style.display = 'none';
+  document.getElementById('lesson-step-panel').style.display  = 'none';
+  // Re-deschide modulul pentru a alege alt exemplu
+  switchTab('learn');
+  LessonsUI.init(lessonCallbacks);
+});
+
+document.getElementById('btn-lesson-free-play')?.addEventListener('click', () => {
+  LessonsUI.startFreePlay();
+});
+
+document.getElementById('btn-lesson-exit')?.addEventListener('click', () => {
+  LessonsUI.exitLesson();
+});
 document.getElementById('btn-settings').addEventListener('click', openSettings);
 document.getElementById('overlay-close').addEventListener('click', closeSettings);
 document.getElementById('overlay').addEventListener('click', e => { if (e.target === overlay) closeSettings(); });
@@ -1635,7 +2109,7 @@ document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
 <!-- ─── Version check + Service Worker Registration ──────────────── -->
 <script>
 (function() {
-  const APP_VERSION = 'sahist-v5';
+  const APP_VERSION = 'sahist-v6';
 
   // ── Mecanism de update care funcționează atât pe file:// cât și pe HTTP ──
 

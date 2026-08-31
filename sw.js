@@ -4,7 +4,7 @@
  * Răspunde la mesajul SKIP_WAITING pentru preluare imediată.
  */
 
-const CACHE = 'sahist-v5';
+const CACHE = 'sahist-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -13,7 +13,9 @@ const ASSETS = [
   './storage.js',
   './manifest.json',
   './config.json',
-  './engine-stockfish.js'
+  './engine-stockfish.js',
+  './lessons-data.js',
+  './lessons-ui.js'
 ];
 
 self.addEventListener('install', e => {
