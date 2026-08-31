@@ -814,6 +814,17 @@
       flex-direction: column;
       gap: 8px;
     }
+    .lesson-cat-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: -4px 0 10px;
+      line-height: 1.4;
+    }
+    .lesson-mod-meta {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
     .example-btn {
       padding: 12px 16px;
       background: var(--surface);
@@ -824,10 +835,24 @@
       font-size: 0.85rem;
       cursor: pointer;
       text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       transition: border-color var(--transition), background var(--transition);
     }
     .example-btn:hover { border-color: var(--gold-dim); background: var(--surface2); }
     .example-btn.done { color: #27ae60; border-color: #27ae60; }
+    .ex-num {
+      width: 22px; height: 22px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .ex-title { flex: 1; }
 
     /* ─── Step panel (pe tablă) ──────────────────────────────── */
     #lesson-step-panel {
@@ -837,6 +862,10 @@
       border-radius: var(--radius);
       padding: 14px;
       margin-top: 8px;
+      /* Lățime fixă = lățimea tablei, înălțime minimă rezervată */
+      width: min(calc(100vw - 32px), 520px);
+      min-height: 130px;
+      box-sizing: border-box;
     }
     #step-indicator {
       font-size: 0.68rem;
@@ -1879,21 +1908,24 @@ function applySettingsAndStart() {
 }
 
 // ─── Tab switching ─────────────────────────────────────────────────
-const tabPlay    = document.getElementById('tab-play');
-const tabLearn   = document.getElementById('tab-learn');
-const mainView   = document.getElementById('main');
+const tabPlay     = document.getElementById('tab-play');
+const tabLearn    = document.getElementById('tab-learn');
+const mainView    = document.getElementById('main');
 const lessonsView = document.getElementById('lessons-view');
 
 function switchTab(tab) {
   tabPlay.classList.toggle('active', tab === 'play');
   tabLearn.classList.toggle('active', tab === 'learn');
-  mainView.style.display    = tab === 'play'  ? '' : 'none';
+  mainView.style.display     = tab === 'play'  ? '' : 'none';
   lessonsView.classList.toggle('active', tab === 'learn');
 }
 
-tabPlay.addEventListener('click',  () => switchTab('play'));
+tabPlay.addEventListener('click',  () => {
+  switchTab('play');
+});
 tabLearn.addEventListener('click', () => {
   switchTab('learn');
+  // Init cu callbacks deja stocate (sau le furnizăm prima dată)
   LessonsUI.init(lessonCallbacks);
 });
 
@@ -1960,6 +1992,14 @@ function clearLessonHighlights() {
 
 // ─── Lesson Callbacks ──────────────────────────────────────────────
 const lessonCallbacks = {
+  switchToPlay() {
+    switchTab('play');
+  },
+
+  switchToLearn() {
+    switchTab('learn');
+  },
+
   initPosition(fen, pColor) {
     // Oprește orice joc activ
     aiThinking = false;
@@ -2043,15 +2083,8 @@ const lessonCallbacks = {
 };
 
 // ─── Lesson finish buttons ─────────────────────────────────────────
-document.getElementById('btn-lesson-next-example')?.addEventListener('click', () => {
-  // Găsește exemplul următor în modulul curent
-  document.getElementById('lesson-finish-btns').style.display = 'none';
-  document.getElementById('lesson-step-panel').style.display  = 'none';
-  // Re-deschide modulul pentru a alege alt exemplu
-  switchTab('learn');
-  LessonsUI.init(lessonCallbacks);
-});
-
+// "Exemplul următor" — onclick setat dinamic din finishLesson() în lessons-ui.js
+// "Joc liber" și "Ieși" — statice
 document.getElementById('btn-lesson-free-play')?.addEventListener('click', () => {
   LessonsUI.startFreePlay();
 });
@@ -2059,6 +2092,9 @@ document.getElementById('btn-lesson-free-play')?.addEventListener('click', () =>
 document.getElementById('btn-lesson-exit')?.addEventListener('click', () => {
   LessonsUI.exitLesson();
 });
+
+// Init lecții cu callbacks la pornire (fără a schimba tab-ul)
+LessonsUI.init(lessonCallbacks);
 document.getElementById('btn-settings').addEventListener('click', openSettings);
 document.getElementById('overlay-close').addEventListener('click', closeSettings);
 document.getElementById('overlay').addEventListener('click', e => { if (e.target === overlay) closeSettings(); });

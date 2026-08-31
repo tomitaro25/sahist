@@ -1,28 +1,26 @@
 /**
- * Șahist — Lecții UI Controller
+ * Șahist — Lecții UI Controller v2
  *
- * Gestionează:
- * - Navigarea între module și exemple
- * - Execuția pas cu pas (ghidat / auto)
- * - Highlight-uri pe tablă pentru indicații
- * - Feedback la mutare greșită
- * - Trecerea în modul liber după lecție
- * - Progresul salvat în localStorage
+ * Fix-uri față de v1:
+ * - Switch automat la tab Joacă când pornește un exemplu
+ * - Callbacks stocate permanent (nu se pierd la re-init)
+ * - Meniu se reîncarcă corect fără refresh
+ * - Explicații la fiecare pas (user și auto)
+ * - Buton "Exemplul următor" funcțional
+ * - Tabla nu se mai deplasează la actualizarea textului
  */
 
 'use strict';
 
 const LessonsUI = (() => {
 
-  // ─── Stare lecție ─────────────────────────────────────────────
-  let activeLesson   = null;  // modulul curent {id, title, examples, ...}
-  let activeExample  = null;  // exemplul curent {id, steps, startFEN, ...}
+  // ─── Stare ────────────────────────────────────────────────────
+  let activeLesson   = null;
+  let activeExample  = null;
   let currentStep    = 0;
-  let lessonActive   = false; // suntem în modul lecție (vs joc liber)
-  let freePlayActive = false; // joc liber pornit din lecție
-
-  // Callback-uri spre UI-ul principal (setate la init)
-  let callbacks = {};
+  let lessonActive   = false;
+  let freePlayActive = false;
+  let _callbacks     = null; // stocate permanent, nu se pierd la re-render
 
   // ─── Progres ──────────────────────────────────────────────────
   const PROGRESS_KEY = 'sahist_lesson_progress';
@@ -32,255 +30,285 @@ const LessonsUI = (() => {
     catch { return {}; }
   }
 
-  function markCompleted(moduleId, exampleId) {
+  function markCompleted(modId, exId) {
     const p = getProgress();
-    if (!p[moduleId]) p[moduleId] = {};
-    p[moduleId][exampleId] = true;
+    if (!p[modId]) p[modId] = {};
+    p[modId][exId] = true;
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
   }
 
-  function isCompleted(moduleId, exampleId) {
-    const p = getProgress();
-    return !!(p[moduleId]?.[exampleId]);
+  function isCompleted(modId, exId) {
+    return !!(getProgress()[modId]?.[exId]);
   }
 
-  // ─── Utilități coordonate ────────────────────────────────────
+  // ─── Coordonate ───────────────────────────────────────────────
   function algToRC(sq) {
-    // 'e4' → {r:4, c:4}
-    const c = sq.charCodeAt(0) - 97;
-    const r = 8 - parseInt(sq[1]);
-    return { r, c };
+    return { r: 8 - parseInt(sq[1]), c: sq.charCodeAt(0) - 97 };
   }
 
-  // ─── Init ─────────────────────────────────────────────────────
+  // ─── Init (poate fi apelat de mai multe ori) ──────────────────
   function init(cb) {
-    callbacks = cb;
+    if (cb) _callbacks = cb; // stocăm callbacks prima dată
     renderLessonsMenu();
   }
 
-  // ─── Randează meniul principal ─────────────────────────────────
+  // ─── Meniu principal ──────────────────────────────────────────
   function renderLessonsMenu() {
     const container = document.getElementById('lessons-panel');
+    const detail    = document.getElementById('lesson-detail-panel');
     if (!container) return;
 
-    const progress = getProgress();
-    let html = '';
+    // Ascunde detaliul, arată meniul
+    if (detail) detail.style.display = 'none';
+    container.style.display = 'block';
 
+    let html = '';
     for (const [catKey, cat] of Object.entries(LESSONS_DATA)) {
       html += `<div class="lesson-category">
         <div class="lesson-cat-header">
           <span class="lesson-cat-icon">${cat.icon}</span>
           <span class="lesson-cat-title">${cat.label}</span>
         </div>
+        <p class="lesson-cat-desc">${cat.description}</p>
         <div class="lesson-modules">`;
 
       for (const mod of cat.modules) {
-        const completed = mod.examples.filter(e =>
-          isCompleted(mod.id, e.id)).length;
-        const total = mod.examples.length;
-        const allDone = total > 0 && completed === total;
-        const soon = mod.comingSoon;
+        const completed = (mod.examples || []).filter(e => isCompleted(mod.id, e.id)).length;
+        const total     = (mod.examples || []).length;
+        const allDone   = total > 0 && completed === total;
+        const soon      = mod.comingSoon;
 
         html += `<div class="lesson-module ${soon ? 'coming-soon' : ''} ${allDone ? 'done' : ''}"
           ${!soon ? `data-module="${mod.id}" data-cat="${catKey}"` : ''}>
           <div class="lesson-mod-title">
-            ${allDone ? '✓ ' : ''}${mod.title}
+            ${allDone ? '<span style="color:#27ae60">✓</span> ' : ''}${mod.title}
             ${soon ? '<span class="soon-badge">În curând</span>' : ''}
           </div>
-          <div class="lesson-mod-sub">${mod.subtitle || mod.description.slice(0, 60) + '...'}</div>
-          ${!soon && total > 0 ? `<div class="lesson-mod-progress">
-            <div class="lesson-prog-bar" style="width:${Math.round(completed/total*100)}%"></div>
-          </div>` : ''}
+          <div class="lesson-mod-sub">${mod.subtitle || ''}</div>
+          ${!soon && total > 0 ? `
+            <div class="lesson-mod-meta">${completed}/${total} exemple</div>
+            <div class="lesson-mod-progress">
+              <div class="lesson-prog-bar" style="width:${Math.round(completed/total*100)}%"></div>
+            </div>` : ''}
         </div>`;
       }
-
       html += `</div></div>`;
     }
 
     container.innerHTML = html;
 
-    // Click pe modul
     container.querySelectorAll('.lesson-module:not(.coming-soon)').forEach(el => {
       el.addEventListener('click', () => {
-        const modId = el.dataset.module;
+        const modId  = el.dataset.module;
         const catKey = el.dataset.cat;
-        const mod = LESSONS_DATA[catKey]?.modules.find(m => m.id === modId);
+        const mod    = LESSONS_DATA[catKey]?.modules.find(m => m.id === modId);
         if (mod) openModule(mod);
       });
     });
   }
 
-  // ─── Deschide un modul ────────────────────────────────────────
+  // ─── Modul detail ─────────────────────────────────────────────
   function openModule(mod) {
     activeLesson = mod;
-    showModuleView(mod);
-  }
-
-  function showModuleView(mod) {
-    const panel = document.getElementById('lesson-detail-panel');
-    const menu  = document.getElementById('lessons-panel');
+    const panel   = document.getElementById('lesson-detail-panel');
+    const menu    = document.getElementById('lessons-panel');
     if (!panel || !menu) return;
 
     menu.style.display  = 'none';
     panel.style.display = 'block';
 
-    const progress = getProgress();
-
-    let examplesHtml = mod.examples.map((ex, i) => {
+    const exHtml = (mod.examples || []).map((ex, i) => {
       const done = isCompleted(mod.id, ex.id);
       return `<button class="example-btn ${done ? 'done' : ''}" data-idx="${i}">
-        ${done ? '✓ ' : ''}${ex.title}
+        <span class="ex-num">${i + 1}</span>
+        <span class="ex-title">${done ? '✓ ' : ''}${ex.title}</span>
       </button>`;
     }).join('');
 
     panel.innerHTML = `
-      <button class="back-btn" id="lesson-back">← Înapoi</button>
+      <button class="back-btn" id="lesson-back">← Toate modulele</button>
       <div class="module-header">
         <div class="module-title">${mod.title}</div>
         <div class="module-subtitle">${mod.subtitle || ''}</div>
       </div>
       <div class="module-description">${mod.description}</div>
-      <div class="examples-label">Alege un exemplu:</div>
-      <div class="examples-row">${examplesHtml}</div>
+      <div class="examples-label">Alege un exemplu pentru a începe:</div>
+      <div class="examples-row">${exHtml}</div>
     `;
 
     panel.querySelector('#lesson-back').addEventListener('click', () => {
-      panel.style.display = 'none';
-      menu.style.display  = 'block';
       renderLessonsMenu();
     });
 
     panel.querySelectorAll('.example-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.idx);
-        startExample(mod.examples[idx]);
+        startExample(mod.examples[parseInt(btn.dataset.idx)]);
       });
     });
   }
 
-  // ─── Pornește un exemplu ───────────────────────────────────────
+  // ─── Pornește exemplu ─────────────────────────────────────────
   function startExample(example) {
     activeExample  = example;
     currentStep    = 0;
     lessonActive   = true;
     freePlayActive = false;
 
-    // Ascunde panoul de detalii, arată UI-ul de lecție pe tablă
-    document.getElementById('lesson-detail-panel').style.display = 'none';
-    document.getElementById('lesson-step-panel').style.display   = 'block';
+    // Ascunde meniurile lecție
+    const detail = document.getElementById('lesson-detail-panel');
+    const menu   = document.getElementById('lessons-panel');
+    if (detail) detail.style.display = 'none';
+    if (menu)   menu.style.display   = 'none';
 
-    // Inițializează engine-ul cu FEN-ul din exemplu
-    callbacks.initPosition(example.startFEN, example.playerColor || 'w');
+    // SWITCH LA TAB JOACĂ — tabla devine vizibilă
+    if (_callbacks?.switchToPlay) _callbacks.switchToPlay();
+
+    // Inițializează poziția pe tablă
+    _callbacks.initPosition(example.startFEN, example.playerColor || 'w');
+
+    // Arată panoul de lecție și reset butoane finale
+    const stepPanel = document.getElementById('lesson-step-panel');
+    if (stepPanel) stepPanel.style.display = 'block';
+    const finishBtns = document.getElementById('lesson-finish-btns');
+    if (finishBtns) finishBtns.style.display = 'none';
+    const errMsg = document.getElementById('move-error-msg');
+    if (errMsg) errMsg.style.display = 'none';
 
     // Execută primul pas
-    executeStep(currentStep);
+    executeStep(0);
   }
 
-  // ─── Execută un pas ───────────────────────────────────────────
+  // ─── Execută pas ──────────────────────────────────────────────
   function executeStep(idx) {
-    const step = activeExample.steps[idx];
+    const step = activeExample?.steps[idx];
     if (!step) {
       finishLesson();
       return;
     }
 
+    currentStep = idx;
     updateStepPanel(step, idx);
 
     if (step.player === 'auto') {
-      // Mutare automată după un mic delay
       setTimeout(() => {
         const from = algToRC(step.from);
         const to   = algToRC(step.to);
-        callbacks.applyLessonMove(from, to, step.promotion || null);
-        showExplanation(step.explanation);
+        _callbacks.applyLessonMove(from, to, step.promotion || null);
 
-        // Trece automat la pasul următor după ce utilizatorul citește
-        setTimeout(() => {
-          currentStep++;
-          executeStep(currentStep);
-        }, step.explanation ? 2200 : 900);
-      }, 700);
+        // Arată explicația DUPĂ mutarea automată
+        if (step.explanation) showExplanation(step.explanation);
+
+        // Avansează la pasul următor după ce utilizatorul citește
+        const delay = step.explanation ? 2800 : 1000;
+        setTimeout(() => executeStep(idx + 1), delay);
+      }, 600);
     } else {
-      // Rândul utilizatorului — highlight pe piesa de mutat
+      // Rândul utilizatorului — highlight
       const from = algToRC(step.from);
       const to   = algToRC(step.to);
-      callbacks.highlightLessonSquares(from, to);
+      _callbacks.highlightLessonSquares(from, to);
     }
   }
 
-  // ─── Gestionează mutarea utilizatorului ───────────────────────
+  // ─── Mutarea utilizatorului ───────────────────────────────────
   function handleUserMove(fromRC, toRC) {
     if (!lessonActive || freePlayActive) return false;
 
-    const step = activeExample.steps[currentStep];
+    const step = activeExample?.steps[currentStep];
     if (!step || step.player !== 'user') return false;
 
-    const expectedFrom = algToRC(step.from);
-    const expectedTo   = algToRC(step.to);
+    const exp = algToRC(step.from);
+    const ext = algToRC(step.to);
 
-    const correct = fromRC.r === expectedFrom.r && fromRC.c === expectedFrom.c &&
-                    toRC.r   === expectedTo.r   && toRC.c   === expectedTo.c;
+    const correct = fromRC.r === exp.r && fromRC.c === exp.c &&
+                    toRC.r   === ext.r && toRC.c   === ext.c;
 
     if (!correct) {
-      callbacks.showMoveError();
-      return true; // blochează mutarea, dar o "consumăm"
+      _callbacks.showMoveError();
+      return true; // consumăm click-ul dar nu executăm mutarea
     }
 
-    // Mutare corectă — aplică pe engine și tablă
-    callbacks.applyLessonMove(expectedFrom, expectedTo, step.promotion || null);
-    callbacks.clearLessonHighlights();
-    showExplanation(step.explanation);
+    // Mutare corectă — aplică pe tablă
+    _callbacks.applyLessonMove(exp, ext, step.promotion || null);
+    _callbacks.clearLessonHighlights();
 
-    setTimeout(() => {
-      currentStep++;
-      executeStep(currentStep);
-    }, step.explanation ? 2000 : 800);
+    // Arată explicația mutării utilizatorului
+    if (step.explanation) showExplanation(step.explanation);
 
-    return true; // mutarea a fost procesată de lecție
+    const delay = step.explanation ? 2500 : 800;
+    setTimeout(() => executeStep(currentStep + 1), delay);
+
+    return true;
   }
 
-  // ─── UI pas curent ────────────────────────────────────────────
+  // ─── Panou pas curent ────────────────────────────────────────
   function updateStepPanel(step, idx) {
-    const total   = activeExample.steps.filter(s => s.player === 'user').length;
-    const userIdx = activeExample.steps.slice(0, idx + 1).filter(s => s.player === 'user').length;
+    const total    = activeExample.steps.length;
+    const userSteps = activeExample.steps.filter(s => s.player === 'user').length;
+    const doneUser  = activeExample.steps.slice(0, idx).filter(s => s.player === 'user').length;
 
-    const panel = document.getElementById('lesson-step-panel');
-    if (!panel) return;
+    const indEl  = document.getElementById('step-indicator');
+    const instEl = document.getElementById('step-instruction');
+    const expEl  = document.getElementById('step-explanation');
+    const errEl  = document.getElementById('move-error-msg');
+
+    if (indEl) indEl.textContent =
+      `${activeExample.title}  ·  Pas ${idx + 1} din ${total}`;
 
     const isUser = step.player === 'user';
+    if (instEl) {
+      instEl.textContent = isUser
+        ? (step.hint || 'Fă mutarea indicată pe tablă')
+        : '⟳ Calculatorul mută...';
+      instEl.className = 'step-instruction ' + (isUser ? 'user-turn' : 'auto-turn');
+    }
 
-    panel.querySelector('#step-indicator').textContent =
-      `${activeExample.title} · Pasul ${idx + 1} din ${activeExample.steps.length}`;
-
-    panel.querySelector('#step-instruction').textContent =
-      isUser ? (step.hint || 'Fă mutarea indicată') : '⟳ Calculatorul mută...';
-
-    panel.querySelector('#step-instruction').className =
-      'step-instruction ' + (isUser ? 'user-turn' : 'auto-turn');
-
-    panel.querySelector('#step-explanation').textContent = '';
+    // Curăță explicația și eroarea la fiecare pas nou
+    if (expEl) expEl.textContent = '';
+    if (errEl) errEl.style.display = 'none';
   }
 
   function showExplanation(text) {
     const el = document.getElementById('step-explanation');
-    if (el && text) el.textContent = text;
+    if (el && text) {
+      el.textContent = text;
+      // Scroll ușor spre explicație
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
-  // ─── Finalizare lecție ────────────────────────────────────────
+  // ─── Final lecție ─────────────────────────────────────────────
   function finishLesson() {
     markCompleted(activeLesson.id, activeExample.id);
 
-    const panel = document.getElementById('lesson-step-panel');
-    if (!panel) return;
+    const indEl  = document.getElementById('step-indicator');
+    const instEl = document.getElementById('step-instruction');
+    const expEl  = document.getElementById('step-explanation');
+    const btns   = document.getElementById('lesson-finish-btns');
 
-    panel.querySelector('#step-indicator').textContent = '✓ Lecție completă!';
-    panel.querySelector('#step-instruction').textContent = '';
-    panel.querySelector('#step-instruction').className = 'step-instruction';
-    panel.querySelector('#step-explanation').textContent =
-      'Ai finalizat cu succes acest exemplu. Vrei să mai exersezi?';
+    if (indEl)  indEl.textContent  = '✓ Lecție completată!';
+    if (instEl) { instEl.textContent = ''; instEl.className = 'step-instruction'; }
+    if (expEl)  expEl.textContent  =
+      'Felicitări! Ai parcurs cu succes acest exemplu. Ce vrei să faci în continuare?';
+    if (btns)   btns.style.display = 'flex';
 
-    // Arată butoanele de final
-    document.getElementById('lesson-finish-btns').style.display = 'flex';
+    // Actualizează butonul "Exemplul următor"
+    const nextBtn = document.getElementById('btn-lesson-next-example');
+    if (nextBtn && activeLesson) {
+      const curIdx = activeLesson.examples.findIndex(e => e.id === activeExample.id);
+      const nextEx = activeLesson.examples[curIdx + 1];
+      if (nextEx) {
+        nextBtn.textContent = `→ ${nextEx.title}`;
+        nextBtn.style.display = 'block';
+        nextBtn.onclick = () => {
+          const finBtns = document.getElementById('lesson-finish-btns');
+          if (finBtns) finBtns.style.display = 'none';
+          startExample(nextEx);
+        };
+      } else {
+        nextBtn.style.display = 'none'; // nu mai există exemplu următor
+      }
+    }
   }
 
   // ─── Joc liber ────────────────────────────────────────────────
@@ -288,22 +316,30 @@ const LessonsUI = (() => {
     freePlayActive = true;
     lessonActive   = false;
 
-    document.getElementById('lesson-finish-btns').style.display = 'none';
-    document.getElementById('lesson-step-panel').style.display  = 'none';
+    const stepPanel = document.getElementById('lesson-step-panel');
+    const finBtns   = document.getElementById('lesson-finish-btns');
+    if (stepPanel) stepPanel.style.display = 'none';
+    if (finBtns)   finBtns.style.display   = 'none';
 
-    // Reinițializează poziția și lasă utilizatorul să joace liber
-    callbacks.startFreePlay(activeExample.startFEN, activeExample.playerColor || 'w');
+    _callbacks.startFreePlay(activeExample.startFEN, activeExample.playerColor || 'w');
   }
 
-  // ─── Ieșire din lecție ────────────────────────────────────────
+  // ─── Ieșire lecție ────────────────────────────────────────────
   function exitLesson() {
     lessonActive   = false;
     freePlayActive = false;
-    activeLesson   = null;
-    activeExample  = null;
     currentStep    = 0;
 
-    callbacks.exitLessons();
+    const stepPanel = document.getElementById('lesson-step-panel');
+    const finBtns   = document.getElementById('lesson-finish-btns');
+    if (stepPanel) stepPanel.style.display = 'none';
+    if (finBtns)   finBtns.style.display   = 'none';
+
+    _callbacks.clearLessonHighlights();
+
+    // Revenim la tab Învață și reîncărcăm meniul
+    if (_callbacks?.switchToLearn) _callbacks.switchToLearn();
+    renderLessonsMenu();
   }
 
   // ─── API public ───────────────────────────────────────────────
