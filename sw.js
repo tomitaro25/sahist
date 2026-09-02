@@ -4,7 +4,7 @@
  * Răspunde la mesajul SKIP_WAITING pentru preluare imediată.
  */
 
-const CACHE = 'sahist-v6';
+const CACHE = 'sahist-v7';
 const ASSETS = [
   './',
   './index.html',

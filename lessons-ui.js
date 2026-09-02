@@ -166,13 +166,16 @@ const LessonsUI = (() => {
     // Inițializează poziția pe tablă
     _callbacks.initPosition(example.startFEN, example.playerColor || 'w');
 
-    // Arată panoul de lecție și reset butoane finale
+    // Arată panoul de lecție și reset
     const stepPanel = document.getElementById('lesson-step-panel');
     if (stepPanel) stepPanel.style.display = 'block';
     const finishBtns = document.getElementById('lesson-finish-btns');
     if (finishBtns) finishBtns.style.display = 'none';
     const errMsg = document.getElementById('move-error-msg');
     if (errMsg) errMsg.style.display = 'none';
+
+    // Curăță chat-ul de la lecția anterioară
+    clearChatLog();
 
     // Execută primul pas
     executeStep(0);
@@ -195,11 +198,12 @@ const LessonsUI = (() => {
         const to   = algToRC(step.to);
         _callbacks.applyLessonMove(from, to, step.promotion || null);
 
-        // Arată explicația DUPĂ mutarea automată
-        if (step.explanation) showExplanation(step.explanation);
+        // Adaugă în chat log după mutarea automată
+        if (step.explanation) {
+          appendChat('auto', moveToNotation(step.from, step.to), step.explanation);
+        }
 
-        // Avansează la pasul următor după ce utilizatorul citește
-        const delay = step.explanation ? 2800 : 1000;
+        const delay = step.explanation ? 2200 : 900;
         setTimeout(() => executeStep(idx + 1), delay);
       }, 600);
     } else {
@@ -232,10 +236,12 @@ const LessonsUI = (() => {
     _callbacks.applyLessonMove(exp, ext, step.promotion || null);
     _callbacks.clearLessonHighlights();
 
-    // Arată explicația mutării utilizatorului
-    if (step.explanation) showExplanation(step.explanation);
+    // Adaugă în chat log mutarea utilizatorului
+    if (step.explanation) {
+      appendChat('user', moveToNotation(step.from, step.to), step.explanation);
+    }
 
-    const delay = step.explanation ? 2500 : 800;
+    const delay = step.explanation ? 1800 : 800;
     setTimeout(() => executeStep(currentStep + 1), delay);
 
     return true;
@@ -268,28 +274,57 @@ const LessonsUI = (() => {
     if (errEl) errEl.style.display = 'none';
   }
 
-  function showExplanation(text) {
-    const el = document.getElementById('step-explanation');
-    if (el && text) {
-      el.textContent = text;
-      // Scroll ușor spre explicație
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // ─── Chat log ─────────────────────────────────────────────────
+  function clearChatLog() {
+    const log = document.getElementById('lesson-chat-log');
+    if (log) log.innerHTML = '';
+  }
+
+  function appendChat(type, moveNotation, text) {
+    // type: 'user' | 'auto' | 'system'
+    const log = document.getElementById('lesson-chat-log');
+    if (!log || !text) return;
+
+    const avatarChar = type === 'user' ? '♟' : type === 'auto' ? '⚙' : '✓';
+    const moveBadge  = moveNotation
+      ? `<span class="chat-move-badge">${moveNotation}</span>` : '';
+
+    const entry = document.createElement('div');
+    entry.className = `chat-entry ${type === 'user' ? 'reverse' : ''}`;
+
+    if (type === 'user') {
+      // User entry: bubble pe dreapta
+      entry.innerHTML = `
+        <div class="chat-bubble user">${moveBadge}${text}</div>
+        <div class="chat-avatar user">${avatarChar}</div>`;
+    } else {
+      entry.innerHTML = `
+        <div class="chat-avatar ${type}">${avatarChar}</div>
+        <div class="chat-bubble ${type}">${moveBadge}${text}</div>`;
     }
+
+    log.appendChild(entry);
+    // Scroll la ultima intrare
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function moveToNotation(from, to) {
+    return from + '→' + to;
   }
 
   // ─── Final lecție ─────────────────────────────────────────────
   function finishLesson() {
     markCompleted(activeLesson.id, activeExample.id);
 
+    // Mesaj final în chat
+    appendChat('system', null, '✓ Lecție completată! Ai înțeles conceptul demonstrat în acest exemplu.');
+
     const indEl  = document.getElementById('step-indicator');
     const instEl = document.getElementById('step-instruction');
-    const expEl  = document.getElementById('step-explanation');
     const btns   = document.getElementById('lesson-finish-btns');
 
     if (indEl)  indEl.textContent  = '✓ Lecție completată!';
     if (instEl) { instEl.textContent = ''; instEl.className = 'step-instruction'; }
-    if (expEl)  expEl.textContent  =
-      'Felicitări! Ai parcurs cu succes acest exemplu. Ce vrei să faci în continuare?';
     if (btns)   btns.style.display = 'flex';
 
     // Actualizează butonul "Exemplul următor"

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-  <title>Șahist v6 Beta</title>
+  <title>Șahist v7</title>
 
   <style>
     /* ─── Tokens ─────────────────────────────────────────────── */
@@ -883,14 +883,76 @@
     }
     .step-instruction.user-turn { color: var(--gold); }
     .step-instruction.auto-turn { color: var(--text-dim); font-style: italic; font-weight: 400; }
-    #step-explanation {
+    #lesson-chat-log {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+      max-height: 260px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    #lesson-chat-log::-webkit-scrollbar { width: 3px; }
+    #lesson-chat-log::-webkit-scrollbar-track { background: transparent; }
+    #lesson-chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .chat-entry {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      animation: fadeInUp 0.25s ease;
+    }
+    .chat-entry.reverse {
+      flex-direction: row-reverse;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .chat-avatar {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .chat-avatar.user { background: var(--gold); color: #1a1610; }
+    .chat-avatar.auto { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+    .chat-avatar.system { background: #27ae6022; color: #27ae60; border: 1px solid #27ae6044; }
+    .chat-bubble {
+      flex: 1;
       font-size: 0.78rem;
-      color: var(--text-dim);
       line-height: 1.5;
-      min-height: 2.5em;
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-      margin-top: 8px;
+      color: var(--text-dim);
+      background: var(--surface2);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) var(--radius-sm);
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+    }
+    .chat-bubble.user {
+      background: rgba(201,168,76,0.08);
+      border-color: rgba(201,168,76,0.25);
+      color: var(--text);
+      border-radius: var(--radius-sm) 0 var(--radius-sm) var(--radius-sm);
+    }
+    .chat-bubble.system {
+      background: rgba(39,174,96,0.08);
+      border-color: rgba(39,174,96,0.2);
+      color: #27ae60;
+      font-weight: 600;
+      font-size: 0.82rem;
+    }
+    .chat-move-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      margin-right: 4px;
+      color: var(--gold);
     }
     #move-error-msg {
       display: none;
@@ -940,7 +1002,7 @@
 
 <!-- ─── Topbar ──────────────────────────────────────────────────── -->
 <header id="topbar">
-  <div class="logo">♟ Șahist <span>v6 Beta</span></div>
+  <div class="logo">♟ Șahist <span>v7</span></div>
   <div id="topbar-actions">
     <div id="thinking-dot" title="Calculatorul gândește..."></div>
     <button class="icon-btn" id="btn-settings" title="Setări" aria-label="Setări">⚙</button>
@@ -1008,7 +1070,8 @@
       <div id="step-indicator"></div>
       <div id="step-instruction" class="step-instruction"></div>
       <div id="move-error-msg">✗ Aceasta nu e mutarea corectă. Încearcă din nou!</div>
-      <div id="step-explanation"></div>
+      <!-- Chat log — se acumulează pe tot parcursul lecției -->
+      <div id="lesson-chat-log"></div>
       <div id="lesson-finish-btns">
         <button class="lesson-action-btn primary" id="btn-lesson-next-example">→ Exemplul următor</button>
         <button class="lesson-action-btn" id="btn-lesson-free-play">♟ Exersează liber de la această poziție</button>
@@ -2145,7 +2208,7 @@ document.querySelectorAll('.seg-ctrl').forEach(ctrl => {
 <!-- ─── Version check + Service Worker Registration ──────────────── -->
 <script>
 (function() {
-  const APP_VERSION = 'sahist-v6';
+  const APP_VERSION = 'sahist-v7';
 
   // ── Mecanism de update care funcționează atât pe file:// cât și pe HTTP ──
 

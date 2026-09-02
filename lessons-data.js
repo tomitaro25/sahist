@@ -830,10 +830,85 @@ const LESSONS_DATA = {
         id: 'skewer',
         title: 'Raza X (Skewer)',
         subtitle: 'Inversul înțepăturii — piesa valoroasă e în față',
-        description: 'Ca o înțepătură inversată: piesa valoroasă e atacată direct și trebuie să se mute, expunând piesa din spatele ei care va fi capturată.',
+        description: 'Ca o înțepătură inversată: piesa valoroasă e atacată direct și trebuie să se mute, expunând piesa din spatele ei. Dacă pinul e un scut, raza X e o sabie — forțezi piesa valoroasă să se miște și câștigi ce era ascuns în spatele ei.',
         difficulty: 2,
-        comingSoon: true,
-        examples: []
+        examples: [
+          {
+            id: 'skewer-rook-01',
+            title: 'Raza X cu tura — pe coloană',
+            startFEN: 'q7/8/8/3k4/8/8/6B1/6K1 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'g2', to: 'e4',
+                hint: 'Mută nebunul din g2 pe e4',
+                explanation: 'RAZA X! Nebunul pe e4 dă șah regelui negru de pe d5. Regele este FORȚAT să se mute — iar pe diagonala e4-a8, în spatele regelui, se află regina neagră! Aceasta e diferența față de înțepătură: piesa valoroasă e în față.'
+              },
+              {
+                player: 'auto',
+                from: 'd5', to: 'c5',
+                explanation: 'Regele fuge pe c5 — nu are altă opțiune. Regina neagră de pe a8 e acum în bătaia nebunului!'
+              },
+              {
+                player: 'user',
+                from: 'e4', to: 'a8',
+                hint: 'Nebunul capturează regina de pe a8',
+                explanation: 'Excelent! Nebunul câștigă regina — avantaj material imens! Raza X a funcționat: am forțat regele să se mute, expunând piesa valoroasă din spatele lui.'
+              }
+            ]
+          },
+          {
+            id: 'skewer-rook-02',
+            title: 'Raza X cu tura — pe rând',
+            startFEN: '7q/8/8/8/3k4/8/1Q6/6K1 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'b2', to: 'c3',
+                hint: 'Mută regina din b2 pe c3',
+                explanation: 'RAZA X DIAGONALĂ! Regina pe c3 dă șah regelui negru de pe d4. Regele trebuie să se mute — iar pe diagonala c3-h8, în spatele regelui, se află regina neagră! Am forțat regele să cedeze.'
+              },
+              {
+                player: 'auto',
+                from: 'd4', to: 'e4',
+                explanation: 'Regele fuge pe e4. Regina neagră de pe h8 e acum în bătaia reginei albe!'
+              },
+              {
+                player: 'user',
+                from: 'c3', to: 'h8',
+                hint: 'Capturează regina neagră de pe h8',
+                explanation: 'Regina câștigă regina adversă! Raza X diagonală a funcționat perfect — regele a fost forțat să se mute, expunând regina din spatele lui.'
+              }
+            ]
+          },
+          {
+            id: 'skewer-queen-01',
+            title: 'Raza X cu regina',
+            startFEN: '1q6/8/8/8/8/4k3/8/6QK w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'g1', to: 'f2',
+                hint: 'Mută regina din g1 pe f2',
+                explanation: 'RAZA X DIAGONALĂ! Regina pe f2 dă șah regelui negru de pe e3. Pe diagonala f2-b6, după rege urmează d4, c5, b6 — unde se află regina neagră! Regele trebuie să se mute, expunând regina adversă.'
+              },
+              {
+                player: 'auto',
+                from: 'e3', to: 'd3',
+                explanation: 'Regele fuge pe d3. Regina neagră de pe b6 e acum în bătaia reginei albe!'
+              },
+              {
+                player: 'user',
+                from: 'f2', to: 'b6',
+                hint: 'Capturează regina neagră de pe b6',
+                explanation: 'Regina câștigă regina adversă! Raza X e una dintre cele mai spectaculoase tactici — forțezi piesa valoroasă să se mute și câștigi ce era în spatele ei.'
+              }
+            ]
+          }
+        ]
       },
 
       // ── Atacul descoperit ─────────────────────────────────────────
@@ -841,13 +916,101 @@ const LESSONS_DATA = {
         id: 'discovered-attack',
         title: 'Atacul descoperit',
         subtitle: 'O piesă se mută și dezvăluie atacul alteia',
-        description: 'O piesă se mută, eliberând linia de atac a unei alte piese proprii. Adversarul trebuie să răspundă la două amenințări simultan.',
+        description: 'O piesă se mută, eliberând linia de atac a unei alte piese proprii. Adversarul trebuie să răspundă la două amenințări simultan — de multe ori imposibil. Cel mai puternic: piesa care se mută atacă și ea ceva în același timp!',
         difficulty: 2,
-        comingSoon: true,
-        examples: []
+        examples: [
+          {
+            id: 'discovered-01',
+            title: 'Atacul descoperit cu tura',
+            startFEN: '4k3/8/8/4N3/8/8/8/3KR3 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'e5', to: 'c4',
+                hint: 'Mută calul din e5 pe c4',
+                explanation: 'ATAC DESCOPERIT! Calul se mută de pe coloana e, descoperind atacul turii de pe e1 asupra regelui negru de pe e8. Șah descoperit! Adversarul trebuie să scape regele.'
+              },
+              {
+                player: 'auto',
+                from: 'e8', to: 'd7',
+                explanation: 'Regele fuge de pe coloana e — singurul răspuns la șahul descoperit.'
+              },
+              {
+                player: 'user',
+                from: 'e1', to: 'e7',
+                hint: 'Tura pe e7 — atac maxim!',
+                explanation: 'Tura invadează pe rândul 7! Amenință mat și controlează spațiul adversarului. Atacul descoperit a permis turii să preia o poziție dominantă.'
+              }
+            ]
+          },
+          {
+            id: 'discovered-02',
+            title: 'Atacul descoperit cu nebunul',
+            startFEN: '4k1r1/8/8/3N4/8/8/1B6/3K4 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'd5', to: 'f4',
+                hint: 'Mută calul din d5 pe f4',
+                explanation: 'ATAC DESCOPERIT! Calul se mută de pe diagonala b2-g7, descoperind nebunul de pe b2 care acum atacă tura de pe g7! Adversarul are două probleme simultan — nu le poate rezolva pe amândouă!'
+              },
+              {
+                player: 'auto',
+                from: 'e8', to: 'd7',
+                explanation: 'Regele încearcă să ajute — dar tura g7 e deja pierdută!'
+              },
+              {
+                player: 'user',
+                from: 'b2', to: 'g7',
+                hint: 'Nebunul capturează tura de pe g7',
+                explanation: 'Nebunul câștigă tura! Atacul descoperit a funcționat: calul a eliberat diagonala, nebunul a capturat. Aceasta e puterea atacului descoperit!'
+              }
+            ]
+          },
+          {
+            id: 'discovered-03',
+            title: 'Șahul descoperit și mat',
+            startFEN: '4k3/8/8/4N3/8/8/8/3KR3 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'e5', to: 'c6',
+                hint: 'Mută calul din e5 pe c6',
+                explanation: 'ȘAH DESCOPERIT! Calul se mută de pe coloana e, tura de pe e1 dă șah regelui e8.'
+              },
+              {
+                player: 'auto',
+                from: 'e8', to: 'd7',
+                explanation: 'Regele se retrage pe d7.'
+              },
+              {
+                player: 'user',
+                from: 'e1', to: 'e7',
+                hint: 'Tura pe e7 — șah și amenințare de mat!',
+                explanation: 'Tura pe e7 dă șah regelui d7 și amenință mat!'
+              },
+              {
+                player: 'auto',
+                from: 'd7', to: 'c8',
+                explanation: 'Regele se refugiază pe c8.'
+              },
+              {
+                player: 'user',
+                from: 'c6', to: 'd8',
+                hint: 'Calul pe d8 — șah și mat!',
+                explanation: 'ȘAH MAT! Calul pe d8 colaborează cu tura e7 pentru mat. Colaborarea cal + tură prin atac descoperit a produs un final frumos!'
+              }
+            ]
+          }
+        ]
       }
     ]
   },
+
+
 
   // FINALE — urmează
   // ═══════════════════════════════════════════════════════════════
@@ -860,28 +1023,286 @@ const LESSONS_DATA = {
         id: 'king-opposition',
         title: 'Opoziția regilor',
         subtitle: 'Conceptul fundamental al finalurilor de pioni',
-        description: 'Opoziția apare când cei doi regi se află față în față cu un singur pătrat între ei. Regele care NU are rândul de mutat deține opoziția — avantaj crucial în finalurile de pioni.',
+        description: 'Opoziția apare când cei doi regi se află față în față cu un singur pătrat între ei. Regele care NU are rândul de mutat deține opoziția — avantaj crucial în finalurile de pioni. Cel care deține opoziția forțează adversarul să cedeze teren.',
         difficulty: 2,
-        comingSoon: true,
-        examples: []
+        examples: [
+          {
+            id: 'opposition-01',
+            title: 'Opoziția directă — câștigă teren',
+            startFEN: '8/4k3/8/8/8/8/4K3/8 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'e2', to: 'e3',
+                hint: 'Mută regele din e2 pe e3',
+                explanation: 'Regele alb avansează spre centru. Obiectivul: să ajungem față în față cu regele negru cu el la mutare — asta înseamnă opoziție!'
+              },
+              {
+                player: 'auto',
+                from: 'e7', to: 'e6',
+                explanation: 'Regele negru coboară — se apropie de confruntare.'
+              },
+              {
+                player: 'user',
+                from: 'e3', to: 'e4',
+                hint: 'Mută regele din e3 pe e4',
+                explanation: 'Regele avansează. Acum regii sunt față în față cu două pătrate între ei — nu e opoziție încă.'
+              },
+              {
+                player: 'auto',
+                from: 'e6', to: 'e7',
+                explanation: 'Regele negru se retrage — nu vrea să cedeze opoziția.'
+              },
+              {
+                player: 'user',
+                from: 'e4', to: 'd5',
+                hint: 'Mută regele din e4 pe d5 — ocolim!',
+                explanation: 'Manevra cheie! În loc să urmărim direct, ocolim pentru a prelua opoziția dintr-un unghi diferit. Regele care știe să ocolească câștigă!'
+              },
+              {
+                player: 'auto',
+                from: 'e7', to: 'f7',
+                explanation: 'Regele negru se mută lateral — nu poate bloca direct.'
+              },
+              {
+                player: 'user',
+                from: 'd5', to: 'd6',
+                hint: 'Mută regele pe d6 — avansăm!',
+                explanation: 'Regele alb avansează! Prin manevrarea laterală am evitat opoziția directă și câștigăm teren crucial spre promovarea pionului. Aceasta e esența tehnicii opoziției!'
+              }
+            ]
+          },
+          {
+            id: 'opposition-02',
+            title: 'Opoziția și promovarea pionului',
+            startFEN: '8/8/8/3k4/3P4/3K4/8/8 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'd3', to: 'e3',
+                hint: 'Mută regele din d3 pe e3',
+                explanation: 'Regele alb se mută lateral — pregătim să ocolim regele negru. Nu avansăm pionul direct!'
+              },
+              {
+                player: 'auto',
+                from: 'd5', to: 'c4',
+                explanation: 'Regele negru încearcă să ocolească lateral.'
+              },
+              {
+                player: 'user',
+                from: 'e3', to: 'e4',
+                hint: 'Regele pe e4 — câștigă teren!',
+                explanation: 'Regele alb escortează pionul! De pe d4 controlăm e5 și câmpurile din fața pionului.'
+              },
+              {
+                player: 'auto',
+                from: 'c4', to: 'c3',
+                explanation: 'Regele negru încearcă să blocheze pionul din față.'
+              },
+              {
+                player: 'user',
+                from: 'e4', to: 'e5',
+                hint: 'Regele pe e5 — câștigăm!',
+                explanation: 'Regele alb se pozitionează perfect! Acum controlează d6 și e6, câmpurile din fața pionului. Cu pion d4 și rege e5, promovarea e inevitabilă. Opoziția și tehnica regelui au câștigat!'
+              }
+            ]
+          },
+          {
+            id: 'opposition-03',
+            title: 'Opoziția — cum să blochezi',
+            startFEN: '8/8/8/3k4/8/8/3K4/8 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'd2', to: 'd3',
+                hint: 'Mută regele din d2 pe d3',
+                explanation: 'Regele alb avansează spre centru. Obiectivul: să ajungem față în față cu regele negru cu el la mutare!'
+              },
+              {
+                player: 'auto',
+                from: 'd5', to: 'c5',
+                explanation: 'Regele negru se mută lateral — încearcă să ocolească.'
+              },
+              {
+                player: 'user',
+                from: 'd3', to: 'e4',
+                hint: 'Mută regele pe e4 — câștigăm teren!',
+                explanation: 'Regele alb ocolește lateral câștigând teren crucial față de regele adversar.'
+              },
+              {
+                player: 'auto',
+                from: 'c5', to: 'b4',
+                explanation: 'Regele negru continuă să fugă lateral.'
+              },
+              {
+                player: 'user',
+                from: 'e4', to: 'd5',
+                hint: 'Mută regele pe d5 — opoziție câștigată!',
+                explanation: 'OPOZIȚIE DIRECTĂ! Regele alb preia opoziția față de regele negru b4 nu, ci față de... regele e acum în poziție dominantă în centru, câștigând teren crucial spre victorie!'
+              }
+            ]
+          }
+        ]
       },
       {
         id: 'queen-vs-king',
         title: 'Regină + Rege vs Rege',
         subtitle: 'Cel mai simplu mat elementar',
-        description: 'Regina și Regele pot da mat regelui singur în cel mult 10 mutări dacă știi tehnica. Ideea: folosești regina pentru a restrânge mișcările regelui advers, iar regele propriu se apropie pentru a ajuta.',
+        description: 'Regina și Regele pot da mat regelui singur în cel mult 10 mutări dacă știi tehnica. Ideea: folosești regina pentru a restrânge mișcările regelui advers, iar regele propriu se apropie pentru a ajuta la mat.',
         difficulty: 2,
-        comingSoon: true,
-        examples: []
+        examples: [
+          {
+            id: 'qk-mat-01',
+            title: 'Mat cu Regina — tehnica de bază',
+            startFEN: '7k/8/5K2/8/8/8/8/6Q1 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'g1', to: 'h2',
+                hint: 'Mută regina din g1 pe h2',
+                explanation: 'Regina restricționează regele negru — h2 controlează toată coloana h și diagonalele. Regele negru e limitat la colțul h8.'
+              },
+              {
+                player: 'auto',
+                from: 'h8', to: 'g8',
+                explanation: 'Regele negru încearcă să fugă din colț.'
+              },
+              {
+                player: 'user',
+                from: 'h2', to: 'h7',
+                hint: 'Regina pe h7 — coridorul se strânge!',
+                explanation: 'Regina pe h7 restricționează și mai mult regele. Regele alb se va apropia pentru mat.'
+              },
+              {
+                player: 'auto',
+                from: 'g8', to: 'f8',
+                explanation: 'Regele fuge spre centru.'
+              },
+              {
+                player: 'user',
+                from: 'h7', to: 'g7',
+                hint: 'Regina pe g7',
+                explanation: 'ȘAH MAT! Regina pe g7 acoperă f7 și g8. Regele f8 nu are unde să fugă — regele alb de pe f6 controlează e7, e6, e5, f5, g5, g6. Acesta este matul clasic cu regină!'
+              }
+            ]
+          },
+          {
+            id: 'qk-mat-02',
+            title: 'Matul de colț — mat rapid',
+            startFEN: 'k7/2K5/1Q6/8/8/8/8/8 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'b6', to: 'b7',
+                hint: 'Mută regina din b6 pe b7',
+                explanation: 'ȘAH MAT! Regina pe b7 dă mat instant — regele a8 nu are nicăieri să fugă! b8 e atacat de regele c7, a7 e atacat de regina b7. Aceasta e poziția clasică de mat în colț cu regină — rezultatul tehnicii corecte de împingere spre margine!'
+              }
+            ]
+          },
+          {
+            id: 'qk-mat-03',
+            title: 'Matul de colț',
+            startFEN: 'k7/8/1QK5/8/8/8/8/8 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'b6', to: 'b7',
+                hint: 'Mută regina din b6 pe b7',
+                explanation: 'ȘAH MAT! Regina pe b7 dă mat — regele a8 nu are nicăieri să fugă! b8 e atacat de regele c6, a7 e atacat de regina b7. Aceasta e poziția clasică de mat în colț cu regină.'
+              }
+            ]
+          }
+        ]
       },
       {
         id: 'rook-vs-king',
         title: 'Tur + Rege vs Rege',
         subtitle: 'Tehnica coridorului',
-        description: 'Tur și Rege pot da mat, dar tehnica e mai complexă decât cu regina. Metoda "coridorului": turul împinge regele adversar spre margine rând cu rând, regele propriu asistă activ.',
+        description: 'Tura și Regele pot da mat, dar tehnica e mai complexă decât cu regina. Metoda coridorului: tura împinge regele adversar spre margine rând cu rând, iar regele propriu asistă activ pentru a evita patul.',
         difficulty: 3,
-        comingSoon: true,
-        examples: []
+        examples: [
+          {
+            id: 'rk-mat-01',
+            title: 'Matul cu tura — poziție finală',
+            startFEN: '7k/8/5KR1/8/8/8/8/8 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'g6', to: 'g8',
+                hint: 'Mută tura din g6 pe g8',
+                explanation: 'ȘAH MAT! Tura pe g8 dă mat — regele h8 nu poate merge pe g8 (ocupat de tură), h7 e atacat de regele f6, iar g7 e atacat de tura g8. Matul cu tura necesită regele propriu să controleze câmpurile de fugă!'
+              }
+            ]
+          },
+          {
+            id: 'rk-mat-02',
+            title: 'Tehnica coridorului — pasul 1',
+            startFEN: '8/8/8/3k4/8/8/8/3KR3 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'e1', to: 'e5',
+                hint: 'Tura pe e5 — tăiem tabla!',
+                explanation: 'Tura pe e5 creează un coridor: regele negru nu mai poate trece sub rândul 5! Aceasta e esența tehnicii coridorului — reduci spațiul regelui adversar rând cu rând.'
+              },
+              {
+                player: 'auto',
+                from: 'd5', to: 'c4',
+                explanation: 'Regele negru încearcă să scape în jos — dar tura taie!'
+              },
+              {
+                player: 'user',
+                from: 'e5', to: 'e4',
+                hint: 'Tura urmărește pe e4',
+                explanation: 'Tura urmărește regele! Coridorul se mută cu el — regele negru e limitat la rândurile 1-3 acum.'
+              },
+              {
+                player: 'auto',
+                from: 'c4', to: 'c3',
+                explanation: 'Regele se mută spre colțul tablei.'
+              },
+              {
+                player: 'user',
+                from: 'd1', to: 'e1',
+                hint: 'Regele alb se apropie',
+                explanation: 'Regele alb avansează! Când regele alb e aproape, tura poate da matul. Principiu: tura face coridoare, regele se apropie, matul vine inevitabil.'
+              }
+            ]
+          },
+          {
+            id: 'rk-mat-03',
+            title: 'Atenție la pat!',
+            startFEN: '8/8/8/8/8/8/7k/5KR1 w - - 0 1',
+            playerColor: 'w',
+            steps: [
+              {
+                player: 'user',
+                from: 'g1', to: 'h1',
+                hint: 'Tura pe h1 — șah regelui!',
+                explanation: 'Tura pe h1 dă șah regelui negru de pe h2. Atenție: dacă am fi mutat tura pe h2 direct, regele nu ar mai fi avut mutări fără a fi în șah = PAT = remiză! Mereu lasă adversarului cel puțin o mutare!'
+              },
+              {
+                player: 'auto',
+                from: 'h2', to: 'g3',
+                explanation: 'Regele negru fuge pe g3.'
+              },
+              {
+                player: 'user',
+                from: 'h1', to: 'h3',
+                hint: 'Tura pe h3 — șah din nou!',
+                explanation: 'Tura dă șah pe rândul 3! Regele negru e împins spre margine rând cu rând. Tehnica coridorului în acțiune — tura taie spațiul, regele propriu se apropie!'
+              }
+            ]
+          }
+        ]
       }
     ]
   }
